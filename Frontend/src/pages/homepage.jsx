@@ -1,10 +1,19 @@
-import { useState } from "react";
+import { useState, useContext, useEffect } from "react";
 import { CTASection, FeaturesGrid, Footer, HeroSection, StatsSection } from "../components/homepagecompo";
 import Navbar from "../components/Navbar";
-
+import { AuthContext } from "../context/AuthContext";
 
 function Homepage(){
   const [userType, setUserType] = useState('patient');
+  const { user } = useContext(AuthContext);
+  
+  useEffect(() => {
+    // Update userType based on authenticated user if available
+    if (user && user.usertype) {
+      setUserType(user.usertype.toLowerCase());
+    }
+  }, [user]);
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar/>
