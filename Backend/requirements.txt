@@ -1,0 +1,9 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+whisper==1.1.10
+langchain==0.0.335
+langchain-groq==0.0.1
+requests==2.31.0
+python-dotenv==1.0.0
+pydantic==2.5.0

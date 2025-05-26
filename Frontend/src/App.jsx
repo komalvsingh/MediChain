@@ -9,6 +9,8 @@ import {
 import Homepage from "./pages/homepage";
 import SignInForm from "./components/signin";
 import SignUpForm from "./components/signup";
+import SymptomChecker from "./components/symptomscheck";
+import PatientDashboard from "./pages/patientdashboard";
 
 function App(){
   return(
@@ -18,6 +20,8 @@ function App(){
       <Route path="/" element={<Homepage/>} />
       <Route path="/login" element={<SignInForm/>} />
       <Route path="/register" element={<SignUpForm />} />
+      <Route path="/symptoms" element={<SymptomChecker />} />
+      <Route path="/pat-dashboard" element={<PatientDashboard/>} />
     </Routes>
   
     

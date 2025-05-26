@@ -16,7 +16,7 @@ import {
   Globe,
   Award
 } from 'lucide-react';
-
+import { Link } from "react-router-dom";
 // Navigation Component
 
 
@@ -62,7 +62,7 @@ export const HeroSection = ({ userType }) => {
           </div>
 
           <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center space-x-2 mx-auto">
-            <span>{content.cta}</span>
+            <Link to="/pat-dashboard"><span>{content.cta}</span></Link>
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
