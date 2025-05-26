@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import Button from "../components/button.jsx";
 import Navbar from "./Navbar.jsx";
+import { useNavigate } from "react-router-dom";
 
 const SignUpForm = ({ onSuccess }) => {
   const [form, setForm] = useState({
@@ -14,7 +15,7 @@ const SignUpForm = ({ onSuccess }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+  const navigate = useNavigate(); 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -46,7 +47,12 @@ const SignUpForm = ({ onSuccess }) => {
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
       // Callback for success (e.g., redirect or show message)
-      if (onSuccess) onSuccess(res.data.user);
+      if (onSuccess){
+        onSuccess(res.data.user);
+       
+      } 
+
+       navigate("/login");
     } catch (err) {
       console.error("Signup error:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Something went wrong!");

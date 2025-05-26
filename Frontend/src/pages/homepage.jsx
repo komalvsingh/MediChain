@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import { AuthContext } from "../context/AuthContext";
 import MediChainChatbot from "../components/chatbot";
 
+import React from "react";
 
 function Homepage(){
   const [userType, setUserType] = useState('patient');
