@@ -47,3 +47,21 @@ export const getUserProfile = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 };
+
+export const getPatients = async (req, res) => {
+  try {
+    const patients = await User.find({ usertype: 'Patient' }).select('-password');
+    res.status(200).json(patients);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch patients', details: err.message });
+  }
+};
+
+export const getDoctors = async (req, res) => {
+  try {
+    const patients = await User.find({ usertype: 'Doctor' }).select('-password');
+    res.status(200).json(patients);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch patients', details: err.message });
+  }
+};
