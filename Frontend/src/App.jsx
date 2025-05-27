@@ -12,6 +12,7 @@ import SignUpForm from "./components/signup";
 import SymptomChecker from "./components/symptomscheck";
 import PatientDashboard from "./pages/patientdashboard";
 
+import DiseaseDetectionTab from "./components/DiseaseDetectionTab";
 function App(){
   return(
     <>
@@ -22,6 +23,7 @@ function App(){
       <Route path="/register" element={<SignUpForm />} />
       <Route path="/symptoms" element={<SymptomChecker />} />
       <Route path="/pat-dashboard" element={<PatientDashboard/>} />
+      <Route path="/disease" element={<DiseaseDetectionTab />}></Route>
     </Routes>
   
     

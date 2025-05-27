@@ -11,6 +11,14 @@ from langchain_groq import ChatGroq
 import logging
 from dotenv import load_dotenv
 
+# Import disease detection integration
+try:
+    from integrate_disease_detection import integrate_disease_detection
+    disease_detection_available = True
+except ImportError:
+    disease_detection_available = False
+    logging.warning("Disease detection module not available - image-based detection will be disabled")
+
 load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -363,6 +371,14 @@ async def get_clinics_endpoint(latitude: float, longitude: float):
     except Exception as e:
         logger.error(f"Error getting clinics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Integrate disease detection if available
+if disease_detection_available:
+    try:
+        integrate_disease_detection(app)
+        logger.info("Disease detection functionality integrated successfully")
+    except Exception as e:
+        logger.error(f"Failed to integrate disease detection: {e}")
 
 if __name__ == "__main__":
     import uvicorn
