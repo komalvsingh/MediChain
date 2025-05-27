@@ -18,6 +18,8 @@ import Header from '../components/DocHeader';
 import PatientsTab from '../components/PatientTab';
 import Navbar from '../components/Navbar';
 import HealthIDPatientsTab from '../components/HealthIDPatientsTab';
+import { Link } from 'react-router-dom';
+
 
 const StatsCards = () => {
   const stats = [
@@ -139,7 +141,7 @@ const OverviewPanel = () => {
               </button>
               <button className="w-full flex items-center space-x-3 p-3 text-left bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 rounded-lg border border-purple-100 transition-all">
                 <Brain className="w-5 h-5 text-purple-600" />
-                <span className="font-medium text-purple-800">AI Diagnosis Tool</span>
+                <Link to="/prescription"><span className="font-medium text-purple-800">Prescription Generator</span></Link>
               </button>
             </div>
           </div>

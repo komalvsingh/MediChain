@@ -14,6 +14,8 @@ import PatientDashboard from "./pages/patientdashboard";
 import DoctorDashboard from "./pages/doctordashboard";
 
 import MedicalReportAnalyzer from "./components/MedicalReportAnalyzer";
+import PrescriptionGenerator from "./components/PrescriptionGenerator";
+import HealthRecordsTab from "./components/HealthRecordsTab";
 function App(){
   return(
     <>
@@ -26,6 +28,8 @@ function App(){
       <Route path="/pat-dashboard" element={<PatientDashboard/>} />
       <Route path="/disease" element={<MedicalReportAnalyzer />}></Route>
       <Route path="/doc-dashboard" element={<DoctorDashboard/>} />
+      <Route path="/prescription" element={<PrescriptionGenerator/>} />
+      <Route path="/record" element={<HealthRecordsTab/>} />
     </Routes>
   
     
