@@ -13,7 +13,7 @@ import SymptomChecker from "./components/symptomscheck";
 import PatientDashboard from "./pages/patientdashboard";
 import DoctorDashboard from "./pages/doctordashboard";
 
-import DiseaseDetectionTab from "./components/DiseaseDetectionTab";
+import MedicalReportAnalyzer from "./components/DiseaseDetectionTab";
 function App(){
   return(
     <>
@@ -24,7 +24,7 @@ function App(){
       <Route path="/register" element={<SignUpForm />} />
       <Route path="/symptoms" element={<SymptomChecker />} />
       <Route path="/pat-dashboard" element={<PatientDashboard/>} />
-      <Route path="/disease" element={<DiseaseDetectionTab />}></Route>
+      <Route path="/disease" element={<MedicalReportAnalyzer />}></Route>
       <Route path="/doc-dashboard" element={<DoctorDashboard/>} />
     </Routes>
   

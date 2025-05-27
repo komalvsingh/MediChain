@@ -1,485 +1,373 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Mic, MicOff, Send, MapPin, Hospital, Clock, AlertTriangle, FileText, User, Bot, Navigation } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, FileText, AlertCircle, CheckCircle, Loader, Download } from 'lucide-react';
 
-const SymptomChecker = () => {
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
-  const [showMap, setShowMap] = useState(false);
-  const [currentClinics, setCurrentClinics] = useState([]);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const messagesEndRef = useRef(null);
-  const mapRef = useRef(null);
-  const mapInstanceRef = useRef(null);
+const MedicalReportAnalyzer = () => {
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState('');
+  const [dragActive, setDragActive] = useState(false);
 
-  useEffect(() => {
-    getUserLocation();
-    loadGoogleMapsScript();
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
-    if (showMap && currentClinics.length > 0 && window.google && userLocation) {
-      initializeMap();
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
     }
-  }, [showMap, currentClinics, userLocation]);
+  };
 
-  const loadGoogleMapsScript = () => {
-    if (window.google) return;
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
     
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-  };
-
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-        }
-      );
-    }
-  };
-
-  const initializeMap = useCallback(() => {
-    if (!mapRef.current || !window.google || !userLocation) return;
-
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: { lat: userLocation.latitude, lng: userLocation.longitude },
-      zoom: 13,
-      styles: [
-        {
-          featureType: 'poi.medical',
-          elementType: 'geometry',
-          stylers: [{ color: '#ffeaa7' }]
-        }
-      ]
-    });
-
-    mapInstanceRef.current = map;
-
-    // Add user location marker
-    new window.google.maps.Marker({
-      position: { lat: userLocation.latitude, lng: userLocation.longitude },
-      map: map,
-      title: 'Your Location',
-      icon: {
-        url: 'data:image/svg+xml;base64,' + btoa(`
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="8" fill="#3B82F6" stroke="#FFFFFF" stroke-width="2"/>
-            <circle cx="12" cy="12" r="3" fill="#FFFFFF"/>
-          </svg>
-        `),
-        scaledSize: new window.google.maps.Size(24, 24)
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const droppedFile = e.dataTransfer.files[0];
+      if (droppedFile.type === 'application/pdf' || droppedFile.type.startsWith('image/')) {
+        setFile(droppedFile);
+        setError('');
+      } else {
+        setError('Please upload a PDF file or image (PNG, JPG, JPEG)');
       }
-    });
-
-    // Add clinic markers
-    currentClinics.forEach((clinic, index) => {
-      // For demo purposes, we'll place clinics around the user location
-      // In real implementation, you'd get actual coordinates from the backend
-      const offset = 0.01 * (index + 1);
-      const lat = userLocation.latitude + offset * Math.cos(index * 60 * Math.PI / 180);
-      const lng = userLocation.longitude + offset * Math.sin(index * 60 * Math.PI / 180);
-
-      const marker = new window.google.maps.Marker({
-        position: { lat, lng },
-        map: map,
-        title: clinic.name,
-        icon: {
-          url: 'data:image/svg+xml;base64,' + btoa(`
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="24" height="24" rx="12" fill="#EF4444"/>
-              <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" stroke="white" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          `),
-          scaledSize: new window.google.maps.Size(32, 32)
-        }
-      });
-
-      const infoWindow = new window.google.maps.InfoWindow({
-        content: `
-          <div style="padding: 8px; max-width: 200px;">
-            <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold;">${clinic.name}</h3>
-            <p style="margin: 4px 0; font-size: 14px;">${clinic.address}</p>
-            ${clinic.rating ? `<p style="margin: 4px 0; font-size: 14px;">⭐ ${clinic.rating}/5</p>` : ''}
-            <p style="margin: 4px 0; font-size: 14px; color: #666;">${clinic.distance}</p>
-          </div>
-        `
-      });
-
-      marker.addListener('click', () => {
-        infoWindow.open(map, marker);
-      });
-    });
-  }, [userLocation, currentClinics]);
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        handleVoiceInput(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      alert('Could not access microphone. Please check permissions.');
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      if (selectedFile.type === 'application/pdf' || selectedFile.type.startsWith('image/')) {
+        setFile(selectedFile);
+        setError('');
+      } else {
+        setError('Please upload a PDF file or image (PNG, JPG, JPEG)');
+      }
     }
   };
 
-  const handleVoiceInput = async (audioBlob) => {
+  const uploadAndAnalyze = async () => {
+    if (!file) {
+      setError('Please select a file first');
+      return;
+    }
+
+    setUploading(true);
+    setAnalyzing(true);
+    setError('');
+    setResults(null);
+
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.wav');
-    
-    if (userLocation) {
-      formData.append('latitude', userLocation.latitude);
-      formData.append('longitude', userLocation.longitude);
-    }
+    formData.append('file', file);
 
-    setIsLoading(true);
-    
     try {
-      const response = await fetch('http://localhost:8001/api/process-voice', {
+      const response = await fetch('http://localhost:5000/analyze', {
         method: 'POST',
         body: formData,
       });
 
-      const result = await response.json();
-      
-      if (response.ok) {
-        setMessages(prev => [
-          ...prev,
-          { type: 'user', content: result.transcribed_text, isVoice: true },
-          { type: 'bot', content: result.analysis }
-        ]);
-        
-        if (result.analysis.nearby_clinics) {
-          setCurrentClinics(result.analysis.nearby_clinics);
-        }
-      } else {
-        throw new Error(result.detail || 'Voice processing failed');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (error) {
-      console.error('Error processing voice:', error);
-      setMessages(prev => [
-        ...prev,
-        { type: 'error', content: 'Failed to process voice input. Please try again.' }
-      ]);
+
+      const data = await response.json();
+      
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setResults(data);
+      }
+    } catch (err) {
+      setError(`Failed to analyze report: ${err.message}`);
+      console.error('Upload error:', err);
     } finally {
-      setIsLoading(false);
+      setUploading(false);
+      setAnalyzing(false);
     }
   };
 
-  const handleTextSubmit = async (e) => {
-    e.preventDefault();
-    if (!inputText.trim()) return;
+  const downloadReport = () => {
+    if (!results) return;
+    
+    const reportContent = `
+MEDICAL REPORT ANALYSIS
+========================
 
-    const userMessage = inputText.trim();
-    setInputText('');
-    setIsLoading(true);
+SUMMARY:
+${results.summary}
 
-    setMessages(prev => [...prev, { type: 'user', content: userMessage, isVoice: false }]);
+POTENTIAL CONDITIONS:
+${results.conditions?.map(condition => `• ${condition.replace('_', ' ')}`).join('\n') || 'None detected'}
 
-    try {
-      const response = await fetch('http://localhost:8001/api/process-text', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          symptoms: userMessage,
-          latitude: userLocation?.latitude,
-          longitude: userLocation?.longitude
-        }),
-      });
+LAB VALUES:
+${Object.entries(results.lab_details || {}).map(([lab, details]) => 
+  `• ${lab.replace('_', ' ')}: ${details.value} (${details.status.replace('_', ' ')})`
+).join('\n') || 'No lab values detected'}
 
-      const result = await response.json();
-      
-      if (response.ok) {
-        setMessages(prev => [...prev, { type: 'bot', content: result.analysis }]);
-        
-        if (result.analysis.nearby_clinics) {
-          setCurrentClinics(result.analysis.nearby_clinics);
-        }
-      } else {
-        throw new Error(result.detail || 'Text processing failed');
-      }
-    } catch (error) {
-      console.error('Error processing text:', error);
-      setMessages(prev => [
-        ...prev,
-        { type: 'error', content: 'Failed to process your symptoms. Please try again.' }
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+MEDICAL ENTITIES:
+${results.entities?.map(entity => 
+  `• ${entity.text} (${entity.type}) - Confidence: ${(entity.confidence * 100).toFixed(1)}%`
+).join('\n') || 'None detected'}
+
+DISCLAIMER:
+This analysis is for informational purposes only and should not replace professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare providers for proper medical evaluation.
+    `;
+
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `medical_report_analysis_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
-  const renderAnalysis = (analysis) => {
-    if (!analysis) return null;
-
-    return (
-      <div className="space-y-4">
-        {analysis.conditions && (
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-blue-800 mb-2 flex items-center">
-              <FileText className="w-4 h-4 mr-2" />
-              Probable Conditions
-            </h4>
-            <ul className="list-disc list-inside space-y-1">
-              {analysis.conditions.map((condition, idx) => (
-                <li key={idx} className="text-blue-700">{condition}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {analysis.tests && (
-          <div className="bg-green-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-green-800 mb-2 flex items-center">
-              <FileText className="w-4 h-4 mr-2" />
-              Suggested Tests
-            </h4>
-            <ul className="list-disc list-inside space-y-1">
-              {analysis.tests.map((test, idx) => (
-                <li key={idx} className="text-green-700">{test}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {analysis.urgency && (
-          <div className={`p-4 rounded-lg ${
-            analysis.urgency.toLowerCase() === 'emergency' ? 'bg-red-50' :
-            analysis.urgency.toLowerCase() === 'moderate' ? 'bg-yellow-50' : 'bg-gray-50'
-          }`}>
-            <h4 className={`font-semibold mb-2 flex items-center ${
-              analysis.urgency.toLowerCase() === 'emergency' ? 'text-red-800' :
-              analysis.urgency.toLowerCase() === 'moderate' ? 'text-yellow-800' : 'text-gray-800'
-            }`}>
-              <AlertTriangle className="w-4 h-4 mr-2" />
-              Urgency: {analysis.urgency}
-            </h4>
-          </div>
-        )}
-
-        {analysis.first_aid && (
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-orange-800 mb-2 flex items-center">
-              <Clock className="w-4 h-4 mr-2" />
-              First Aid
-            </h4>
-            <p className="text-orange-700">{analysis.first_aid}</p>
-          </div>
-        )}
-
-        {analysis.nearby_clinics && analysis.nearby_clinics.length > 0 && (
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-semibold text-purple-800 flex items-center">
-                <Hospital className="w-4 h-4 mr-2" />
-                Nearby Clinics
-              </h4>
-              <button
-                onClick={() => setShowMap(!showMap)}
-                className="px-3 py-1 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 transition-colors flex items-center"
-              >
-                <Navigation className="w-3 h-3 mr-1" />
-                {showMap ? 'Hide Map' : 'Show Map'}
-              </button>
-            </div>
-            
-            {showMap && (
-              <div className="mb-4 rounded-lg overflow-hidden border-2 border-purple-200">
-                <div
-                  ref={mapRef}
-                  style={{ height: '300px', width: '100%' }}
-                  className="bg-gray-200"
-                />
-              </div>
-            )}
-            
-            <div className="space-y-3">
-              {analysis.nearby_clinics.map((clinic, idx) => (
-                <div key={idx} className="bg-white p-3 rounded border">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h5 className="font-medium text-purple-800">{clinic.name}</h5>
-                      <p className="text-sm text-purple-600">{clinic.address}</p>
-                      {clinic.rating && (
-                        <p className="text-sm text-purple-600">⭐ {clinic.rating}/5</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-purple-600 flex items-center">
-                        <MapPin className="w-3 h-3 mr-1" />
-                        {clinic.distance}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
+  const reset = () => {
+    setFile(null);
+    setResults(null);
+    setError('');
+    setUploading(false);
+    setAnalyzing(false);
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 bg-white min-h-screen">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg mb-6">
-        <h1 className="text-3xl font-bold mb-2">🩺 AI Symptom Checker</h1>
-        <p className="text-blue-100">Describe your symptoms in text or voice, get instant medical insights with nearby clinic locations</p>
-      </div>
-
-      <div className="bg-gray-50 rounded-lg p-4 mb-4 h-96 overflow-y-auto">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <div className="text-center">
-              <Bot className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p>Hello! I'm your AI health assistant.</p>
-              <p className="text-sm">Describe your symptoms and I'll help you understand what might be going on.</p>
-              <p className="text-xs mt-2 text-gray-400">📍 Location services enabled for nearby clinic search</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center items-center mb-4">
+            <FileText className="w-12 h-12 text-indigo-600 mr-3" />
+            <h1 className="text-4xl font-bold text-gray-800">Medical Report Analyzer</h1>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((message, idx) => (
-              <div key={idx} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-3xl rounded-lg p-4 ${
-                  message.type === 'user' 
-                    ? 'bg-blue-500 text-white' 
-                    : message.type === 'error'
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-white border shadow-sm'
-                }`}>
-                  {message.type === 'user' && (
-                    <div className="flex items-center mb-2">
-                      <User className="w-4 h-4 mr-2" />
-                      <span className="text-sm opacity-80">
-                        {message.isVoice ? 'Voice Input' : 'Text Input'}
-                      </span>
-                    </div>
-                  )}
-                  {message.type === 'bot' && (
-                    <div className="flex items-center mb-2">
-                      <Bot className="w-4 h-4 mr-2 text-blue-600" />
-                      <span className="text-sm text-gray-600">AI Analysis</span>
-                    </div>
-                  )}
-                  
-                  {message.type === 'bot' && typeof message.content === 'object' 
-                    ? renderAnalysis(message.content)
-                    : <p className="whitespace-pre-wrap">{message.content}</p>
-                  }
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white border shadow-sm rounded-lg p-4">
+          <p className="text-gray-600 text-lg">Upload your medical report for AI-powered analysis</p>
+        </div>
+
+        {/* Upload Section */}
+        {!results && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragActive 
+                  ? 'border-indigo-500 bg-indigo-50' 
+                  : 'border-gray-300 hover:border-indigo-400'
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                Drop your medical report here
+              </h3>
+              <p className="text-gray-500 mb-4">
+                Supports PDF files and images (PNG, JPG, JPEG)
+              </p>
+              <input
+                type="file"
+                accept=".pdf,image/*"
+                onChange={handleFileChange}
+                className="hidden"
+                id="file-upload"
+              />
+              <label
+                htmlFor="file-upload"
+                className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700 transition-colors"
+              >
+                <Upload className="w-5 h-5 mr-2" />
+                Choose File
+              </label>
+            </div>
+
+            {file && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <Bot className="w-4 h-4 mr-2 text-blue-600" />
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                    </div>
+                    <FileText className="w-5 h-5 text-indigo-600 mr-2" />
+                    <span className="text-gray-700">{file.name}</span>
+                    <span className="text-gray-500 ml-2">
+                      ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </span>
                   </div>
+                  <button
+                    onClick={() => setFile(null)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             )}
+
+            {error && (
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                <span className="text-red-700">{error}</span>
+              </div>
+            )}
+
+            <div className="mt-6 text-center">
+              <button
+                onClick={uploadAndAnalyze}
+                disabled={!file || uploading}
+                className="inline-flex items-center px-8 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-lg font-semibold"
+              >
+                {uploading ? (
+                  <>
+                    <Loader className="w-5 h-5 mr-2 animate-spin" />
+                    {analyzing ? 'Analyzing Report...' : 'Uploading...'}
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-5 h-5 mr-2" />
+                    Analyze Report
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
-      </div>
 
-      <div className="bg-white border rounded-lg p-4">
-        <div className="flex items-center space-x-2">
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="Describe your symptoms here..."
-            className="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleTextSubmit(e);
-              }
-            }}
-          />
-          
-          <button
-            type="button"
-            onClick={isRecording ? stopRecording : startRecording}
-            className={`p-3 rounded-lg transition-colors ${
-              isRecording 
-                ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' 
-                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-            }`}
-            disabled={isLoading}
-          >
-            {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-          </button>
-          
-          <button
-            type="button"
-            onClick={handleTextSubmit}
-            disabled={!inputText.trim() || isLoading}
-            className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-          >
-            <Send className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
-          <span>💡 Tip: You can type or use voice input to describe your symptoms</span>
-          {userLocation && (
-            <span className="flex items-center">
-              <MapPin className="w-3 h-3 mr-1" />
-              Location detected - Maps enabled
-            </span>
-          )}
-        </div>
+        {/* Results Section */}
+        {results && (
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <CheckCircle className="w-8 h-8 text-green-500 mr-3" />
+                <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={downloadReport}
+                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Report
+                </button>
+                <button
+                  onClick={reset}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Analyze Another
+                </button>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+              <h3 className="text-lg font-semibold text-blue-800 mb-2">Summary</h3>
+              <p className="text-blue-700">{results.summary}</p>
+            </div>
+
+            {/* Conditions */}
+            {results.conditions && results.conditions.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Potential Conditions</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {results.conditions.map((condition, index) => {
+                    const confidence = results.keyword_confidence?.[condition];
+                    return (
+                      <div key={index} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-yellow-800">
+                            {condition.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </span>
+                          {confidence && (
+                            <span className="text-sm text-yellow-600">
+                              {(confidence * 100).toFixed(0)}% confidence
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Lab Values */}
+            {results.lab_details && Object.keys(results.lab_details).length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Lab Values</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="border border-gray-300 px-4 py-2 text-left">Test</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Value</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(results.lab_details).map(([lab, details]) => (
+                        <tr key={lab} className={details.normal ? 'bg-green-50' : 'bg-red-50'}>
+                          <td className="border border-gray-300 px-4 py-2 font-medium">
+                            {lab.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </td>
+                          <td className="border border-gray-300 px-4 py-2">{details.value}</td>
+                          <td className="border border-gray-300 px-4 py-2">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              details.normal 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {details.normal ? (
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                              ) : (
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                              )}
+                              {details.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Medical Entities */}
+            {results.entities && results.entities.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Medical Entities Detected</h3>
+                <div className="flex flex-wrap gap-2">
+                  {results.entities.slice(0, 10).map((entity, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
+                    >
+                      {entity.text}
+                      <span className="ml-2 text-purple-600">
+                        ({(entity.confidence * 100).toFixed(0)}%)
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Disclaimer */}
+            <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="font-semibold text-red-800 mb-1">Important Disclaimer</h4>
+                  <p className="text-red-700 text-sm">
+                    This analysis is for informational purposes only and should not replace professional medical advice, 
+                    diagnosis, or treatment. Always consult with qualified healthcare providers for proper medical evaluation.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default SymptomChecker;
+export default MedicalReportAnalyzer;

@@ -1,292 +1,313 @@
-import { useState, useEffect } from 'react';
-import { Upload, Camera, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { Upload, FileText, AlertCircle, CheckCircle, Clock, Activity } from 'lucide-react';
 import React from 'react';
 
-const DiseaseDetectionTab = () => {
-  const [uploadedImage, setUploadedImage] = useState(null);
+const MedicalReportAnalyzer = () => {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [error, setError] = useState(null);
-  const [supportedDiseases, setSupportedDiseases] = useState({});
+  const [dragActive, setDragActive] = useState(false);
 
-  // Backend API base URL - adjust this to your backend URL
-  const API_BASE_URL = 'http://localhost:5001/api';
+  // API base URL - adjust this based on your backend deployment
+  const API_BASE_URL = 'http://localhost:8002';
 
-  // Fetch supported diseases on component mount
-  useEffect(() => {
-    fetchSupportedDiseases();
-  }, []);
-
-  const fetchSupportedDiseases = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/supported-diseases`);
-      if (response.ok) {
-        const diseases = await response.json();
-        setSupportedDiseases(diseases);
-      }
-    } catch (error) {
-      console.warn('Could not fetch supported diseases:', error);
-    }
-  };
-
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
+  const handleFileUpload = async (file) => {
     if (!file) return;
 
-    // Reset previous state
-    setError(null);
-    setAnalysisResult(null);
-    
     // Validate file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/bmp', 'image/tiff'];
-    if (!validTypes.includes(file.type)) {
-      setError('Please upload a valid image file (JPEG, PNG, BMP, TIFF)');
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/tiff', 'image/bmp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Please upload a PDF or image file (PNG, JPG, JPEG, TIFF, BMP)');
       return;
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File size must be less than 10MB');
+    // Validate file size (16MB max)
+    const maxSize = 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError('File size must be less than 16MB');
       return;
     }
 
-    // Set uploaded image for preview
-    setUploadedImage(URL.createObjectURL(file));
     setUploadedFile(file);
     setIsAnalyzing(true);
-
-    // Prepare form data
-    const formData = new FormData();
-    formData.append('image', file);
-
-    // Determine image type based on filename
-    const filename = file.name.toLowerCase();
-    let imageType = null;
-    if (filename.includes('chest') || filename.includes('xray') || filename.includes('lung')) {
-      imageType = 'chest_xray';
-    } else if (filename.includes('mri') || filename.includes('brain')) {
-      imageType = 'mri';
-    } else if (filename.includes('retinal') || filename.includes('fundus') || filename.includes('eye')) {
-      imageType = 'retinal';
-    }
-    
-    if (imageType) {
-      formData.append('image_type', imageType);
-    }
+    setError(null);
+    setAnalysisResult(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/analyze-medical-image`, {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         body: formData,
       });
 
-      const result = await response.json();
+      const data = await response.json();
 
-      if (response.ok) {
-        setAnalysisResult(result);
+      if (data.success) {
+        setAnalysisResult(data.data);
       } else {
-        setError(result.error || 'Analysis failed. Please try again.');
+        setError(data.error || 'Analysis failed');
       }
-    } catch (error) {
-      setError('Failed to connect to analysis service. Please check if the backend is running.');
-      console.error('Analysis error:', error);
+    } catch (err) {
+      setError('Failed to connect to the analysis server. Please try again.');
+      console.error('Analysis error:', err);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const getUrgencyColor = (urgency) => {
-    switch (urgency) {
-      case 'high': return 'text-red-700 bg-red-50 border-red-200';
-      case 'moderate': return 'text-yellow-700 bg-yellow-50 border-yellow-200';
-      case 'low': return 'text-green-700 bg-green-50 border-green-200';
-      default: return 'text-gray-700 bg-gray-50 border-gray-200';
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      handleFileUpload(file);
     }
   };
 
-  const getUrgencyIcon = (urgency) => {
-    switch (urgency) {
-      case 'high': return <AlertCircle className="h-4 w-4" />;
-      case 'moderate': return <Clock className="h-4 w-4" />;
-      case 'low': return <CheckCircle className="h-4 w-4" />;
-      default: return <CheckCircle className="h-4 w-4" />;
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileUpload(file);
     }
   };
 
   const resetAnalysis = () => {
-    setUploadedImage(null);
     setUploadedFile(null);
     setAnalysisResult(null);
     setError(null);
     setIsAnalyzing(false);
   };
 
+  const getStatusColor = (status) => {
+    if (status === 'normal' || status === 'optimal' || status === 'good') return 'text-green-600';
+    if (status === 'borderline_high' || status === 'elevated' || status === 'low_normal') return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getStatusIcon = (normal) => {
+    return normal ? <CheckCircle className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />;
+  };
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white/70 backdrop-blur-lg rounded-2xl border border-white/20 p-6">
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="bg-white/70 backdrop-blur-lg rounded-2xl border border-white/20 p-8">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">AI Disease Detection</h2>
-          <p className="text-gray-600">Upload X-rays, MRIs, or lab reports for AI-powered analysis</p>
+          <h2 className="text-3xl font-bold text-gray-800 mb-3">Medical Report Analyzer</h2>
+          <p className="text-gray-600">Upload medical reports (PDF or images) for AI-powered analysis</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div>
-            <div className="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center hover:border-purple-400 transition-colors">
-              {uploadedImage ? (
-                <div className="space-y-4">
-                  <img src={uploadedImage} alt="Uploaded scan" className="mx-auto max-h-48 rounded-lg" />
-                  
-                  {isAnalyzing ? (
+        {!analysisResult && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Upload Section */}
+            <div>
+              <div 
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
+                  dragActive 
+                    ? 'border-blue-400 bg-blue-50' 
+                    : 'border-purple-300 hover:border-purple-400'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                {isAnalyzing ? (
+                  <div className="space-y-4">
+                    <div className="animate-spin h-12 w-12 border-4 border-purple-500 border-t-transparent rounded-full mx-auto"></div>
                     <div className="space-y-2">
-                      <div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto"></div>
-                      <p className="text-purple-600">Analyzing image with AI...</p>
+                      <p className="text-purple-600 font-medium">Analyzing medical report...</p>
                       <p className="text-sm text-gray-500">This may take a few moments</p>
                     </div>
-                  ) : error ? (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="flex items-center justify-center space-x-2 mb-2">
-                        <AlertCircle className="h-5 w-5 text-red-500" />
-                        <h3 className="font-semibold text-red-800">Analysis Failed</h3>
-                      </div>
-                      <p className="text-sm text-red-700 mb-3">{error}</p>
-                      <button
-                        onClick={resetAnalysis}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
-                      >
-                        Try Again
-                      </button>
-                    </div>
-                  ) : analysisResult ? (
-                    <div className={`border rounded-lg p-4 ${getUrgencyColor(analysisResult.urgency_level)}`}>
-                      <div className="flex items-center justify-center space-x-2 mb-3">
-                        {getUrgencyIcon(analysisResult.urgency_level)}
-                        <h3 className="font-semibold">Analysis Complete</h3>
-                      </div>
-                      
-                      {/* Primary Findings */}
-                      {analysisResult.primary_findings && analysisResult.primary_findings.length > 0 && (
-                        <div className="mb-3">
-                          <h4 className="font-medium mb-2">Key Findings:</h4>
-                          <div className="text-sm space-y-1">
-                            {analysisResult.primary_findings.map((finding, index) => (
-                              <p key={index}>• {finding}</p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                  </div>
+                ) : (
+                  <div>
+                    <FileText className="h-16 w-16 text-purple-400 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-4">Drop your medical report here or click to browse</p>
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp"
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg cursor-pointer hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                    >
+                      <Upload className="h-5 w-5 mr-2" />
+                      Choose File
+                    </label>
+                    {uploadedFile && (
+                      <p className="mt-3 text-sm text-gray-600">
+                        Selected: {uploadedFile.name}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
 
-                      {/* Disease Predictions */}
-                      {analysisResult.disease_predictions && analysisResult.disease_predictions.length > 0 && (
-                        <div className="mb-3">
-                          <h4 className="font-medium mb-2">Disease Analysis:</h4>
-                          <div className="text-sm space-y-2">
-                            {analysisResult.disease_predictions.map((prediction, index) => (
-                              <div key={index} className="flex justify-between items-center">
-                                <span>{prediction.disease}</span>
-                                <span className="font-medium">
-                                  {Math.round(prediction.confidence * 100)}%
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Recommendations */}
-                      {analysisResult.recommendations && (
-                        <div className="mb-3">
-                          <h4 className="font-medium mb-2">Recommendations:</h4>
-                          <div className="text-sm space-y-1">
-                            {analysisResult.recommendations.slice(0, 3).map((rec, index) => (
-                              <p key={index}>• {rec}</p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={resetAnalysis}
-                        className="mt-3 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm"
-                      >
-                        Analyze Another Image
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div>
-                  <Upload className="h-12 w-12 text-purple-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-4">Drop your medical images here or click to browse</p>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg cursor-pointer hover:shadow-lg transition-all"
-                  >
-                    <Camera className="h-4 w-4 mr-2" />
-                    Choose File
-                  </label>
+              {error && (
+                <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                    <p className="text-red-700 font-medium">Error</p>
+                  </div>
+                  <p className="text-red-600 text-sm mt-1">{error}</p>
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-800">Supported Formats</h3>
-            <div className="space-y-2">
-              {[
-                'X-ray images (Chest, Bone)',
-                'MRI scans',
-                'CT scans',
-                'Lab report images',
-                'Retinal images'
-              ].map((format, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <span className="text-gray-600">{format}</span>
+            {/* Info Section */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                  <Activity className="h-5 w-5 mr-2 text-purple-500" />
+                  What We Analyze
+                </h3>
+                <div className="space-y-3">
+                  {[
+                    'Lab values (glucose, cholesterol, blood pressure)',
+                    'Medical conditions detection',
+                    'Abnormal findings identification',
+                    'Health summary generation'
+                  ].map((feature, index) => (
+                    <div key={index} className="flex items-center space-x-3">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="text-gray-600">{feature}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Supported Formats</h3>
+                <div className="space-y-2">
+                  {[
+                    'PDF medical reports',
+                    'PNG/JPG lab results',
+                    'TIFF medical images',
+                    'BMP scan reports'
+                  ].map((format, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                      <span className="text-gray-600">{format}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h4 className="font-semibold text-amber-800 mb-2 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Important Notice
+                </h4>
+                <p className="text-sm text-amber-700">
+                  This AI analysis is for informational purposes only. Always consult with a qualified healthcare professional for proper diagnosis and treatment.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analysis Results */}
+        {analysisResult && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-gray-800">Analysis Results</h3>
+              <button
+                onClick={resetAnalysis}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Analyze New Report
+              </button>
             </div>
 
-            {/* Supported Diseases */}
-            {Object.keys(supportedDiseases).length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Detectable Conditions</h3>
-                {Object.entries(supportedDiseases).map(([imageType, diseases]) => (
-                  <div key={imageType} className="mb-3">
-                    <h4 className="font-medium text-gray-700 capitalize mb-2">
-                      {imageType.replace('_', ' ')}:
-                    </h4>
-                    <div className="text-sm text-gray-600 space-y-1">
-                      {diseases.map((disease, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
-                          <span>{disease}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+            {/* Summary */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h4 className="font-semibold text-blue-800 mb-3 flex items-center">
+                <FileText className="h-5 w-5 mr-2" />
+                Summary
+              </h4>
+              <p className="text-blue-700">{analysisResult.summary}</p>
+              <div className="mt-3 text-xs text-blue-600">
+                Analysis completed: {new Date(analysisResult.analysis_timestamp).toLocaleString()}
+              </div>
+            </div>
+
+            {/* Detected Conditions */}
+            {analysisResult.conditions && analysisResult.conditions.length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                <h4 className="font-semibold text-orange-800 mb-3 flex items-center">
+                  <AlertCircle className="h-5 w-5 mr-2" />
+                  Detected Conditions
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {analysisResult.conditions.map((condition, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium"
+                    >
+                      {condition.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
-              <h4 className="font-semibold text-yellow-800 mb-2">Important Notice</h4>
-              <p className="text-sm text-yellow-700">
-                AI analysis is for preliminary assessment only. Always consult with a qualified healthcare professional for proper diagnosis and treatment.
-              </p>
+            {/* Lab Values */}
+            {analysisResult.lab_details && Object.keys(analysisResult.lab_details).length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <h4 className="font-semibold text-gray-800 mb-4 flex items-center">
+                  <Activity className="h-5 w-5 mr-2" />
+                  Lab Values Analysis
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Object.entries(analysisResult.lab_details).map(([labName, details]) => (
+                    <div key={labName} className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-medium text-gray-800 capitalize">
+                          {labName.replace(/_/g, ' ')}
+                        </h5>
+                        {getStatusIcon(details.normal)}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-lg font-semibold text-gray-900">
+                          {details.value}
+                        </p>
+                        <p className={`text-sm font-medium capitalize ${getStatusColor(details.status)}`}>
+                          {details.status.replace(/_/g, ' ')}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* File Info */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>File: {analysisResult.filename}</span>
+                <span>Text extracted: {analysisResult.extracted_text_length} characters</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default DiseaseDetectionTab;
+export default MedicalReportAnalyzer;
