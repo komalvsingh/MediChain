@@ -5,13 +5,15 @@ import App from './App.jsx'
 import React from "react";
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
-
+import { MediChainProvider } from './context/BlockChainContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <MediChainProvider>
+          <App />
+        </MediChainProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
