@@ -3,6 +3,7 @@ import { Search, MapPin, Star, MessageCircle, Clock, Bell, Circle, Heart, Activi
 import axios from 'axios';
 import { useWebSocket } from '../hooks/useWebSocket';
 import ChatModal from './ChatModal';
+import { Link } from 'react-router-dom';
 
 export const PatientsTab = () => {
   const [patients, setPatients] = useState([]);
@@ -84,7 +85,8 @@ export const PatientsTab = () => {
             ...patient,
             lastMessage: latestNotification.message,
             unreadCount: (patient.unreadCount || 0) + patientNotifications.length,
-            lastMessageTime: new Date(latestNotification.timestamp)
+            lastMessageTime: new Date(latestNotification.timestamp),
+            hasNewMessage: true // Add flag for new message
           };
         }
         return patient;
@@ -97,10 +99,10 @@ export const PatientsTab = () => {
     setIsChatOpen(true);
     joinChat(patient._id);
     
-    // Clear unread count for this patient
+    // Clear unread count and new message flag for this patient
     setPatients(prev => prev.map(pat => 
       pat._id === patient._id 
-        ? { ...pat, unreadCount: 0 }
+        ? { ...pat, unreadCount: 0, hasNewMessage: false }
         : pat
     ));
     
@@ -209,14 +211,26 @@ export const PatientsTab = () => {
                 : 'border-white/20'
             }`}
           >
-            {/* Notification Badge */}
+            {/* Enhanced Notification System */}
             {(patient.unreadCount || 0) > 0 && (
-              <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold animate-pulse">
-                {patient.unreadCount}
-              </div>
+              <>
+                {/* Animated notification badge */}
+                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold animate-pulse z-10">
+                  {patient.unreadCount}
+                </div>
+                
+                {/* New message banner */}
+                <div className="absolute top-3 left-3 right-3 bg-gradient-to-r from-blue-500 to-teal-500 text-white text-xs px-3 py-1 rounded-full flex items-center justify-center space-x-1 animate-bounce">
+                  <Bell className="h-3 w-3" />
+                  <span className="font-medium">New Message!</span>
+                </div>
+                
+                {/* Glow effect */}
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-200/20 to-teal-200/20 animate-pulse pointer-events-none"></div>
+              </>
             )}
 
-            <div className="p-6">
+            <div className={`p-6 ${(patient.unreadCount || 0) > 0 ? 'pt-12' : ''}`}>
               {/* Patient Info */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
@@ -235,6 +249,12 @@ export const PatientsTab = () => {
                     <Circle 
                       className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full fill-green-400 text-green-400"
                     />
+                    {/* New message indicator on avatar */}
+                    {(patient.unreadCount || 0) > 0 && (
+                      <div className="absolute -top-1 -left-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                        <Bell className="h-2 w-2 text-white" />
+                      </div>
+                    )}
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-800">{patient.name}</h3>
@@ -256,12 +276,30 @@ export const PatientsTab = () => {
                 )}
               </div>
 
-              {/* Last Message Preview */}
+              {/* Enhanced Last Message Preview */}
               {patient.lastMessage && (
-                <div className="bg-gradient-to-r from-blue-50 to-teal-50 rounded-lg p-3 mb-4 border border-blue-100">
-                  <p className="text-sm text-gray-700 truncate">
-                    <span className="font-medium">Last message:</span> {patient.lastMessage}
-                  </p>
+                <div className={`rounded-lg p-3 mb-4 border transition-all ${
+                  (patient.unreadCount || 0) > 0
+                    ? 'bg-gradient-to-r from-blue-50 to-teal-50 border-blue-200 shadow-md animate-pulse'
+                    : 'bg-gradient-to-r from-blue-50 to-teal-50 border-blue-100'
+                }`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-700 truncate">
+                        <span className="font-medium">Last message:</span> {patient.lastMessage}
+                      </p>
+                      {patient.lastMessageTime && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(patient.lastMessageTime).toLocaleTimeString()}
+                        </p>
+                      )}
+                    </div>
+                    {(patient.unreadCount || 0) > 0 && (
+                      <div className="ml-2 flex items-center">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -314,19 +352,22 @@ export const PatientsTab = () => {
               {/* Action Buttons */}
               <div className="flex space-x-2">
                 <button className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:shadow-lg transition-all text-sm">
-                  View Records
+                  <Link to="/record">View Records</Link>
                 </button>
                 <button 
                   onClick={() => openChat(patient)}
                   className={`px-3 py-2 rounded-lg transition-all relative ${
                     (patient.unreadCount || 0) > 0
-                      ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white animate-pulse'
+                      ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white animate-pulse shadow-lg'
                       : 'border border-blue-300 text-blue-600 hover:bg-blue-50'
                   }`}
                 >
                   <MessageCircle className="h-4 w-4" />
                   {(patient.unreadCount || 0) > 0 && (
-                    <Bell className="absolute -top-1 -right-1 h-3 w-3 text-white" />
+                    <>
+                      <Bell className="absolute -top-1 -right-1 h-3 w-3 text-white" />
+                      <div className="absolute inset-0 rounded-lg bg-white/20 animate-ping"></div>
+                    </>
                   )}
                 </button>
               </div>
