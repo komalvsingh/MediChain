@@ -11,6 +11,7 @@ import SignInForm from "./components/signin";
 import SignUpForm from "./components/signup";
 import SymptomChecker from "./components/symptomscheck";
 import PatientDashboard from "./pages/patientdashboard";
+import DoctorDashboard from "./pages/doctordashboard";
 
 import DiseaseDetectionTab from "./components/DiseaseDetectionTab";
 function App(){
@@ -24,6 +25,7 @@ function App(){
       <Route path="/symptoms" element={<SymptomChecker />} />
       <Route path="/pat-dashboard" element={<PatientDashboard/>} />
       <Route path="/disease" element={<DiseaseDetectionTab />}></Route>
+      <Route path="/doc-dashboard" element={<DoctorDashboard/>} />
     </Routes>
   
     

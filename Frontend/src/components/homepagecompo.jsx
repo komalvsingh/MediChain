@@ -20,24 +20,27 @@ import { Link } from "react-router-dom";
 // Navigation Component
 
 
-// Hero Section Component
 export const HeroSection = ({ userType }) => {
   const heroContent = {
     patient: {
       title: "Your Health, Your Control",
       subtitle: "AI-powered early disease detection with complete privacy and control over your medical data",
       cta: "Start Health Assessment",
-      features: ["AI Symptom Checker", "Secure Health Records", "Early Disease Detection"]
+      features: ["AI Symptom Checker", "Secure Health Records", "Early Disease Detection"],
+      route: "/pat-dashboard"
     },
     doctor: {
       title: "Advanced Medical Intelligence",
       subtitle: "Access AI-powered diagnostics and secure patient records with blockchain-verified permissions",
       cta: "Access Doctor Portal",
-      features: ["AI-Assisted Diagnosis", "Secure Patient Access", "Analytics Dashboard"]
+      features: ["AI-Assisted Diagnosis", "Secure Patient Access", "Analytics Dashboard"],
+      route: "/doc-dashboard"
     }
   };
 
   const content = heroContent[userType];
+
+  if (!content) return null; // in case userType is invalid or not passed
 
   return (
     <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 pt-16 pb-24">
@@ -52,7 +55,7 @@ export const HeroSection = ({ userType }) => {
           <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
             {content.subtitle}
           </p>
-          
+
           <div className="flex flex-wrap justify-center gap-4 mb-12">
             {content.features.map((feature, index) => (
               <div key={index} className="bg-white/70 backdrop-blur-sm px-4 py-2 rounded-full border border-purple-200">
@@ -61,16 +64,17 @@ export const HeroSection = ({ userType }) => {
             ))}
           </div>
 
-          <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center space-x-2 mx-auto">
-            <Link to="/pat-dashboard"><span>{content.cta}</span></Link>
-            <ChevronRight className="h-5 w-5" />
-          </button>
+          <Link to={content.route}>
+            <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center space-x-2 mx-auto">
+              <span>{content.cta}</span>
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </Link>
         </div>
       </div>
     </div>
   );
 };
-
 // Features Grid Component
 export const FeaturesGrid = ({ userType }) => {
   const patientFeatures = [

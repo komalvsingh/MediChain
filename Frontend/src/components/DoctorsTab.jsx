@@ -6,10 +6,12 @@ import ChatModal from './ChatModal';
 
 const DoctorsTab = () => {
   const [doctors, setDoctors] = useState([]);
+  const [doctorUsers, setDoctorUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
   
   // Get token from your auth context/localStorage
   const token = localStorage.getItem('token'); // Adjust based on your auth implementation
@@ -28,10 +30,39 @@ const DoctorsTab = () => {
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/doctors", {
+        // Fetch doctor users from auth/doctors endpoint
+        const doctorUsersRes = await axios.get("http://localhost:5000/api/auth/doctors", {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setDoctors(res.data);
+        setDoctorUsers(doctorUsersRes.data);
+
+        // Fetch doctor details from doctors endpoint
+        const doctorDetailsRes = await axios.get("http://localhost:5000/api/doctors", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        // Merge doctor users with their details
+        const mergedDoctors = doctorUsersRes.data.map(doctorUser => {
+          const doctorDetails = doctorDetailsRes.data.find(doc => 
+            doc.userId === doctorUser._id || doc.email === doctorUser.email
+          );
+          
+          return {
+            ...doctorUser, // User data for chat (includes _id, name, email, usertype)
+            // Doctor details for display
+            specialization: doctorDetails?.specialization || 'General Practice',
+            experience: doctorDetails?.experience || 'N/A',
+            location: doctorDetails?.location || 'Not specified',
+            fee: doctorDetails?.fee || 'Contact for pricing',
+            rating: doctorDetails?.rating || '4.5',
+            nextAvailable: doctorDetails?.nextAvailable || 'Contact to schedule',
+            image: doctorDetails?.image || doctorUser.avatar || '👨‍⚕️',
+            // Keep original doctor details if needed
+            doctorDetails: doctorDetails
+          };
+        });
+
+        setDoctors(mergedDoctors);
       } catch (error) {
         console.error("Error fetching doctors:", error);
       } finally {
@@ -39,7 +70,37 @@ const DoctorsTab = () => {
       }
     };
 
-    fetchDoctors();
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await axios.get("http://localhost:5000/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        // Ensure only patients can access this component
+        if (res.data.usertype !== 'Patient') {
+          console.error("Access denied: Only patients can view doctors");
+          // You might want to redirect or show an error message here
+          return;
+        }
+        
+        setCurrentUser(res.data);
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+        // Fallback: try to get user info from token or localStorage
+        const userInfo = localStorage.getItem('userInfo');
+        if (userInfo) {
+          const parsedUser = JSON.parse(userInfo);
+          if (parsedUser.usertype === 'Patient') {
+            setCurrentUser(parsedUser);
+          }
+        }
+      }
+    };
+
+    if (token) {
+      fetchDoctors();
+      fetchCurrentUser();
+    }
   }, [token]);
 
   // Update doctor cards with notifications
@@ -64,7 +125,7 @@ const DoctorsTab = () => {
   const openChat = (doctor) => {
     setSelectedDoctor(doctor);
     setIsChatOpen(true);
-    joinChat(doctor._id);
+    joinChat(doctor._id); // Using user _id for chat
     
     // Clear unread count for this doctor
     setDoctors(prev => prev.map(doc => 
@@ -86,8 +147,9 @@ const DoctorsTab = () => {
   };
 
   const filteredDoctors = doctors.filter(doctor =>
-    doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doctor.specialization.toLowerCase().includes(searchTerm.toLowerCase())
+    doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doctor.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Sort doctors: those with unread messages first
@@ -103,6 +165,20 @@ const DoctorsTab = () => {
 
   if (loading) {
     return <p className="text-center py-10 text-gray-600">Loading doctors...</p>;
+  }
+
+  // Check if user is authorized (Patient only)
+  if (currentUser && currentUser.usertype !== 'Patient') {
+    return (
+      <div className="text-center py-10">
+        <p className="text-red-600">Access denied. Only patients can view doctors.</p>
+      </div>
+    );
+  }
+
+  // Don't render if user data is not loaded yet
+  if (!currentUser) {
+    return <p className="text-center py-10 text-gray-600">Loading user data...</p>;
   }
 
   return (
@@ -159,7 +235,15 @@ const DoctorsTab = () => {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div className="relative">
-                    <div className="text-3xl">{doctor.image || '👨‍⚕️'}</div>
+                    {doctor.avatar || doctor.image ? (
+                      <img 
+                        src={doctor.avatar || doctor.image} 
+                        alt={doctor.name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-3xl">{doctor.image || '👨‍⚕️'}</div>
+                    )}
                     <Circle 
                       className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full fill-green-400 text-green-400"
                     />
@@ -167,6 +251,7 @@ const DoctorsTab = () => {
                   <div>
                     <h3 className="font-semibold text-gray-800">{doctor.name}</h3>
                     <p className="text-sm text-purple-600">{doctor.specialization}</p>
+                    <p className="text-xs text-gray-500">{doctor.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1">
@@ -234,16 +319,41 @@ const DoctorsTab = () => {
         ))}
       </div>
 
+      {/* Empty State */}
+      {sortedDoctors.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">👨‍⚕️</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No doctors found</h3>
+          <p className="text-gray-500">
+            {searchTerm ? 'Try adjusting your search terms.' : 'No doctors available at the moment.'}
+          </p>
+        </div>
+      )}
+
       {/* Chat Modal */}
-      {isChatOpen && selectedDoctor && (
+      {isChatOpen && selectedDoctor && currentUser && (
         <ChatModal
-          doctor={selectedDoctor}
+          doctor={{
+            _id: selectedDoctor._id, // User ID for chat
+            name: selectedDoctor.name,
+            specialization: selectedDoctor.specialization,
+            image: selectedDoctor.avatar || selectedDoctor.image || '👨‍⚕️',
+            email: selectedDoctor.email,
+            usertype: selectedDoctor.usertype, // Should be 'Doctor'
+            ...selectedDoctor // spread other properties if needed
+          }}
           isOpen={isChatOpen}
           onClose={closeChat}
           messages={messages}
           onSendMessage={sendMessage}
           onTyping={sendTyping}
           isConnected={isConnected}
+          currentUser={{ 
+            _id: currentUser._id, // User ID for chat
+            usertype: currentUser.usertype, // Should be 'Patient'
+            name: currentUser.name,
+            email: currentUser.email
+          }}
         />
       )}
     </div>
