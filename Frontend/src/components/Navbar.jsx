@@ -5,9 +5,14 @@ import { Link } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext.jsx";
 import { useMediChain } from "../context/BlockChainContext.jsx";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
+
 
 const Navbar = () => {
   const [wallet, setWallet] = useState(null);
+  const navigate = useNavigate();
+
   const [mintStatus, setMintStatus] = useState({
     loading: false,
     error: null,
@@ -133,7 +138,15 @@ const Navbar = () => {
 
         {/* Auth buttons */}
         {user ? (
-          <Button variant="outline" onClick={logout}>Logout</Button>
+          <Button
+    variant="outline"
+    onClick={() => {
+      logout();
+      navigate("/");
+    }}
+  >
+    Logout
+  </Button>
         ) : (
           <>
             <Button><Link to="/login">Sign In</Link></Button>
