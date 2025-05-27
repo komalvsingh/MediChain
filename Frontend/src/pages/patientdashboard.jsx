@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import NavigationTabs from '../components/NavigationTabs';
 import DashboardTab from '../components/DashboardTab';
-import DiseaseDetectionTab from '../components/DiseaseDetectionTab';
 import DoctorsTab from '../components/DoctorsTab';
 import HealthRecordsTab from '../components/HealthRecordsTab';
 import ZKPVerificationTab from '../components/ZKPVerificationTab';
@@ -9,6 +8,7 @@ import FloatingActionButton from '../components/FloatingActionButton';
 import EmergencyBanner from '../components/EmergencyBanner';
 import Navbar from '../components/Navbar';
 import SymptomChecker from '../components/symptomscheck';
+import MedicalReportAnalyzer from '../components/MedicalReportAnalyzer';
 
 const PatientDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -43,7 +43,7 @@ const PatientDashboard = () => {
         
         {activeTab === 'dashboard' && <DashboardTab wearableData={wearableData} />}
         {activeTab === 'symptom-checker' && <SymptomChecker/>}
-        {activeTab === 'disease-detection' && <DiseaseDetectionTab />}
+        {activeTab === 'disease-detection' && <MedicalReportAnalyzer />}
         {activeTab === 'doctors' && <DoctorsTab />}
         {activeTab === 'health-records' && <HealthRecordsTab />}
         {activeTab === 'zkp-verification' && <ZKPVerificationTab />}
