@@ -9,6 +9,7 @@ import {
   Activity,
   Clock,
   Brain,
+  UserCheck
 } from 'lucide-react';
 import { AccessRequestsPanel } from '../components/AccessRequest';
 import { ProfileForm } from '../components/ProfileForm';
@@ -16,6 +17,7 @@ import { Sidebar } from '../components/Sidebar';
 import Header from '../components/DocHeader';
 import PatientsTab from '../components/PatientTab';
 import Navbar from '../components/Navbar';
+import HealthIDPatientsTab from '../components/HealthIDPatientsTab';
 
 const StatsCards = () => {
   const stats = [
@@ -175,6 +177,8 @@ const DoctorDashboard = () => {
         return <OverviewPanel />;
       case 'patients':
         return <PatientsTab />;
+      case 'healthid-patients':
+        return <HealthIDPatientsTab />;
       case 'requests':
         return <AccessRequestsPanel />;
       case 'appointments':

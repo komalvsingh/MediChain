@@ -4,7 +4,8 @@ import {
   Upload, 
   Stethoscope, 
   FileText, 
-  Shield 
+  Shield,
+  UserCheck 
 } from 'lucide-react';
 import React from 'react';
 const NavigationTabs = ({ activeTab, setActiveTab }) => {
@@ -14,6 +15,7 @@ const NavigationTabs = ({ activeTab, setActiveTab }) => {
     { id: 'disease-detection', label: 'Disease Detection', icon: Upload },
     { id: 'doctors', label: 'Find Doctors', icon: Stethoscope },
     { id: 'health-records', label: 'Health Records', icon: FileText },
+    { id: 'access-requests', label: 'Access Requests', icon: UserCheck },
     { id: 'zkp-verification', label: 'ZKP Verification', icon: Shield }
   ];
 

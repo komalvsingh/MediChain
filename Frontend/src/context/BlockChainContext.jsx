@@ -161,9 +161,15 @@ export const MediChainProvider = ({ children }) => {
 
   // Request doctor access
   const requestDoctorAccess = async (patientAddress) => {
-    if (!medVault) return;
+    if (!medVault || !provider) return;
     try {
       setLoading(true);
+      
+      // Check if we already have a pending request to avoid duplicates
+      // Use a limited block range for the query
+      const currentBlock = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 10000); // Last ~10000 blocks
+      
       const tx = await medVault.requestAccess(patientAddress);
       await tx.wait();
       setLoading(false);
@@ -207,11 +213,12 @@ export const MediChainProvider = ({ children }) => {
 
   // 🔧 NEW: Fetch all doctor permissions for current user
   const fetchDoctorAccess = async () => {
-    if (!medVault || !account) return;
+    if (!medVault || !account || !provider) return;
     try {
-      // Note: Since we can't easily enumerate all doctors from the contract,
-      // this would typically be done by listening to events or maintaining
-      // a list of doctors that have requested access
+      // Instead of querying from block 0, get the current block number and go back a reasonable number of blocks
+      const currentBlock = await provider.getBlockNumber();
+      // Use a reasonable block range (e.g., 10000 blocks or about 1-2 days of blocks)
+      const fromBlock = Math.max(0, currentBlock - 10000);
       
       // For now, we'll store doctor addresses that we want to check
       // In a real app, you'd get this from events or a separate tracking system
@@ -257,31 +264,70 @@ export const MediChainProvider = ({ children }) => {
   };
 
   // 🔧 NEW: Listen to contract events
-  const listenToEvents = () => {
-    if (!medVault) return;
+  const listenToEvents = async () => {
+    if (!medVault || !provider) return;
     
-    // Listen for report uploads
-    medVault.on("ReportUploaded", (user, ipfsHash, event) => {
-      console.log("Report uploaded:", { user, ipfsHash });
-      if (user.toLowerCase() === account?.toLowerCase()) {
-        fetchMedicalReports();
-      }
-    });
+    try {
+      // Get current block number and calculate a reasonable fromBlock
+      const currentBlock = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 10000); // Last ~10000 blocks
+      
+      // Remove any existing listeners to avoid duplicates
+      medVault.removeAllListeners();
+      
+      // Set up event listeners with queryFilter to limit block range
+      // For ReportUploaded events
+      medVault.queryFilter(
+        medVault.filters.ReportUploaded(),
+        fromBlock
+      ).then(events => {
+        // Process past events if needed
+        // Then set up listener for new events
+        medVault.on(medVault.filters.ReportUploaded(), (user, ipfsHash, event) => {
+          console.log("Report uploaded:", { user, ipfsHash });
+          if (user.toLowerCase() === account?.toLowerCase()) {
+            fetchMedicalReports();
+          }
+        });
+      }).catch(error => {
+        console.error("Error querying ReportUploaded events:", error);
+      });
 
-    // Listen for access requests
-    medVault.on("AccessRequested", (doctor, patient, event) => {
-      console.log("Access requested:", { doctor, patient });
-      if (patient.toLowerCase() === account?.toLowerCase()) {
-        // Notify user of access request
-        console.log(`Doctor ${doctor} requested access to your records`);
-      }
-    });
+      // For AccessRequested events
+      medVault.queryFilter(
+        medVault.filters.AccessRequested(),
+        fromBlock
+      ).then(events => {
+        // Process past events if needed
+        // Then set up listener for new events
+        medVault.on(medVault.filters.AccessRequested(), (doctor, patient, event) => {
+          console.log("Access requested:", { doctor, patient });
+          if (patient.toLowerCase() === account?.toLowerCase()) {
+            // Notify user of access request
+            console.log(`Doctor ${doctor} requested access to your records`);
+          }
+        });
+      }).catch(error => {
+        console.error("Error querying AccessRequested events:", error);
+      });
 
-    // Listen for access approvals
-    medVault.on("AccessApproved", (doctor, patient, granted, event) => {
-      console.log("Access approved:", { doctor, patient, granted });
-      fetchDoctorAccess();
-    });
+      // For AccessApproved events
+      medVault.queryFilter(
+        medVault.filters.AccessApproved(),
+        fromBlock
+      ).then(events => {
+        // Process past events if needed
+        // Then set up listener for new events
+        medVault.on(medVault.filters.AccessApproved(), (doctor, patient, granted, event) => {
+          console.log("Access approved:", { doctor, patient, granted });
+          fetchDoctorAccess();
+        });
+      }).catch(error => {
+        console.error("Error querying AccessApproved events:", error);
+      });
+    } catch (error) {
+      console.error("Error setting up event listeners:", error);
+    }
   };
 
   // Initialize when provider changes
@@ -289,17 +335,59 @@ export const MediChainProvider = ({ children }) => {
     if (provider && account && medVault) {
       fetchMedicalReports();
       fetchDoctorAccess();
-      listenToEvents();
-
-      // Cleanup listeners on unmount
-      return () => {
-        if (medVault) {
-          medVault.removeAllListeners();
-        }
-      };
+      // Call the async function properly
+      listenToEvents().catch(error => {
+        console.error("Error in listenToEvents:", error);
+      });
     }
+    
+    // Cleanup function to remove listeners when component unmounts
+    return () => {
+      if (medVault) {
+        medVault.removeAllListeners();
+      }
+    };
   }, [provider, account, medVault]);
 
+  // Add a new function to fetch patients with HealthID
+  // This function will be used in the HealthIDPatientsTab component
+  const fetchPatientsWithHealthID = async (patientAddresses) => {
+    if (!healthID || !medVault) return [];
+    
+    try {
+      const patientsWithHealthID = [];
+      
+      for (const address of patientAddresses) {
+        try {
+          // Check if address has a HealthID
+          const balance = await healthID.balanceOf(address);
+          
+          if (balance > 0) {
+            // Get the tokenId
+            const tokenId = await healthID.addressToTokenId(address);
+            
+            // Check if the current user (doctor) has permission
+            const hasPermission = await medVault.doctorPermissions(address, account);
+            
+            patientsWithHealthID.push({
+              address,
+              tokenId: tokenId.toString(),
+              hasPermission
+            });
+          }
+        } catch (error) {
+          console.error(`Error checking HealthID for address ${address}:`, error);
+        }
+      }
+      
+      return patientsWithHealthID;
+    } catch (error) {
+      console.error('Error fetching patients with HealthID:', error);
+      return [];
+    }
+  };
+
+  // Add this function to the context provider value
   return (
     <MediChainContext.Provider
       value={{
@@ -329,6 +417,7 @@ export const MediChainProvider = ({ children }) => {
         manageDoctorAccess,
         checkDoctorPermission,
         fetchDoctorAccess,
+        fetchPatientsWithHealthID,
         
         // Guardian functions
         requestUnlock,
