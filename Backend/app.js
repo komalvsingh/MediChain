@@ -4,6 +4,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import authRoutes from './routes/authroutes.js';
 import doctorRoutes from "./routes/doctorroutes.js";
+import blockchainRoutes from './routes/blockchainRoutes.js';
 import http from 'http';
 import { initializeWebSocket } from './server/websocket.js';
 import chatRoutes from './routes/chat.js';
@@ -59,8 +60,9 @@ mongoose
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use("/api/doctors", doctorRoutes);
+app.use('/api/doctors', doctorRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/blockchain', blockchainRoutes);
 
 const PORT = process.env.PORT || 5000;
 
