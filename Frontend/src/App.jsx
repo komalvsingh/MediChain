@@ -13,7 +13,7 @@ import SymptomChecker from "./components/symptomscheck";
 import PatientDashboard from "./pages/patientdashboard";
 import DoctorDashboard from "./pages/doctordashboard";
 
-import MedicalReportAnalyzer from "./components/DiseaseDetectionTab";
+import MedicalReportAnalyzer from "./components/MedicalReportAnalyzer";
 function App(){
   return(
     <>
