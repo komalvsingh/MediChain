@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FileText, Download, Calendar, User, Wallet, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-react';
+import { FileText, Download, Calendar, User, Wallet, RefreshCw, AlertCircle, ArrowLeft, Lock, Unlock } from 'lucide-react';
+import { useMediChain } from '../context/BlockChainContext';
+
 
 const PatientRecordsTab = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { patient } = location.state || {};
+  const { requestDoctorAccess } = useMediChain();
+
 
   const [medicalReports, setMedicalReports] = useState([]);
   const [userHealthID, setUserHealthID] = useState(null);
@@ -13,6 +17,8 @@ const PatientRecordsTab = () => {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [reportCount, setReportCount] = useState(0);
+  const [accessStatus, setAccessStatus] = useState('unknown'); // 'unknown', 'granted', 'denied', 'pending', 'requesting'
+  const [requestingAccess, setRequestingAccess] = useState(false);
 
   useEffect(() => {
     if (!patient) {
@@ -26,8 +32,50 @@ const PatientRecordsTab = () => {
       return;
     }
     
-    fetchPatientReports();
+    checkAccessStatus();
   }, [patient, navigate]);
+
+  const checkAccessStatus = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`http://localhost:5000/api/auth/check-access/${patient.walletAddress}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to check access status');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setAccessStatus(data.hasAccess ? 'granted' : 'denied');
+        if (data.hasAccess) {
+          fetchPatientReports();
+        }
+      } else {
+        throw new Error(data.error || 'Failed to check access status');
+      }
+      
+    } catch (err) {
+      console.error('Error checking access status:', err);
+      setError(err.message);
+      setAccessStatus('unknown');
+      setLoading(false);
+    }
+  };
 
   const fetchPatientReports = async () => {
     try {
@@ -102,18 +150,32 @@ const PatientRecordsTab = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchPatientReports();
+    await checkAccessStatus();
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    if (patient && patient.walletAddress) {
-      fetchPatientReports();
-    } else if (patient && !patient.walletAddress) {
-      setError('Patient wallet address not found');
-      setLoading(false);
+  const handleRequestAccess = async () => {
+    if (!patient.walletAddress) {
+      alert("Patient doesn't have a connected wallet address");
+      return;
     }
-  }, [patient]);
+
+    try {
+      setRequestingAccess(true);
+      setAccessStatus('requesting');
+
+      await requestDoctorAccess(patient.walletAddress);
+
+      setAccessStatus('pending');
+      alert(`Access request sent to ${patient.name}`);
+    } catch (error) {
+      console.error("Error requesting access:", error);
+      setAccessStatus('error');
+      alert(`Error requesting access: ${error.message}`);
+    } finally {
+      setRequestingAccess(false);
+    }
+  };
 
   const handleDownload = async (ipfsHash, fileName, index) => {
     try {
@@ -213,6 +275,34 @@ const PatientRecordsTab = () => {
                   Total Reports: {reportCount}
                 </p>
               )}
+              <div className="mt-3">
+                {accessStatus === 'granted' ? (
+                  <div className="flex items-center justify-end space-x-2 text-green-600">
+                    <Unlock className="h-4 w-4" />
+                    <span className="text-sm font-medium">Access Granted</span>
+                  </div>
+                ) : accessStatus === 'denied' || accessStatus === 'unknown' ? (
+                  <div className="flex flex-col items-end space-y-2">
+                    <div className="flex items-center space-x-2 text-red-600">
+                      <Lock className="h-4 w-4" />
+                      <span className="text-sm font-medium">Access Required</span>
+                    </div>
+                    <button
+                      onClick={handleRequestAccess}
+                      disabled={requestingAccess || accessStatus === 'pending' || accessStatus === 'requesting'}
+                      className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                    >
+                      {accessStatus === 'pending' ? 'Request Pending' : 
+                       accessStatus === 'requesting' ? 'Requesting...' : 'Request Access'}
+                    </button>
+                  </div>
+                ) : accessStatus === 'pending' ? (
+                  <div className="flex items-center justify-end space-x-2 text-yellow-600">
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="text-sm font-medium">Access Pending</span>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -235,14 +325,28 @@ const PatientRecordsTab = () => {
               <div className="text-center py-12">
                 <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {error.includes('wallet address') ? 'Wallet Not Connected' : 'Error Loading Reports'}
+                  {error.includes('wallet address') ? 'Wallet Not Connected' : 
+                   accessStatus !== 'granted' ? 'Access Required' : 'Error Loading Reports'}
                 </h3>
-                <p className="text-gray-600 mb-4">{error}</p>
+                <p className="text-gray-600 mb-4">
+                  {accessStatus !== 'granted' ? 
+                    'You need permission to view this patient\'s medical records.' : 
+                    error}
+                </p>
                 <div className="flex justify-center space-x-3">
                   {error.includes('wallet address') ? (
                     <p className="text-sm text-gray-500">
                       This patient needs to connect their wallet to view medical records.
                     </p>
+                  ) : accessStatus !== 'granted' ? (
+                    <button
+                      onClick={handleRequestAccess}
+                      disabled={requestingAccess || accessStatus === 'pending' || accessStatus === 'requesting'}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                    >
+                      {accessStatus === 'pending' ? 'Request Pending' : 
+                       accessStatus === 'requesting' ? 'Requesting...' : 'Request Access'}
+                    </button>
                   ) : (
                     <button
                       onClick={handleRefresh}

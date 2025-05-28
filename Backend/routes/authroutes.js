@@ -3,15 +3,15 @@
 import express from 'express';
 import { 
   
-  fetchMedicalReports,
+  
   signup,
   signin, 
   getUserProfile,
   getPatients,
   getDoctors,
-  fetchPatientMedicalReports,
-  getSpecificReport,
-  checkUserHealthID,
+  
+ 
+  
   authController,
   
 } from '../controllers/authcontroller.js';
@@ -23,7 +23,7 @@ const router = express.Router();
 router.post('/signup', signup);
 router.post('/signin', signin);
 router.get('/me', protect, getUserProfile);
-router.get('/patients', getPatients); 
+router.get('/patients', getPatients); //
 router.get('/doctors', getDoctors);
 
 
@@ -33,8 +33,9 @@ router.post('/upload-report', authController.uploadReport);
 router.get('/patient-reports/:patientAddress', authController.getPatientReports);
 
 // Access Management Routes
-router.post('/request-access', authController.requestAccess);
-router.post('/approve-access', authController.approveAccess);
+router.post('/request-access', authController.requestAccess);//
+router.post('/approve-access', authController.approveAccess);//
+router.get('/check-access/:patientAddress', authController.checkAccess);
 
 // Admin Routes
 router.post('/grant-doctor-role', authController.grantDoctorRole);

@@ -1,5 +1,8 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const generateToken = (user) => {
   return jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -350,7 +353,7 @@ const authController = {
                 return res.status(400).json({ error: "Patient private key and doctor address are required" });
             }
 
-            const result = await approveAccess(patientPrivateKey, doctorAddress, grant !== false);
+            const result = await approveAccess(patientPrivateKey, doctorAddress, grant);
             if (result.success) {
                 res.json(result);
             } else {
@@ -380,6 +383,41 @@ const authController = {
             console.error('Grant doctor role error:', error);
             res.status(500).json({ error: "Internal server error" });
         }
+    },
+    
+    // GET /api/check-access/:patientAddress
+    checkAccess: async (req, res) => {
+        try {
+            const { patientAddress } = req.params;
+            const doctorAddress = req.user?.walletAddress; // Get doctor's wallet address from authenticated user
+
+            if (!patientAddress || !doctorAddress) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: "Both patient address and doctor address are required" 
+                });
+            }
+
+            const result = await checkDoctorPermissions(patientAddress, doctorAddress);
+            
+            if (result.success) {
+                res.json({
+                    success: true,
+                    hasAccess: result.hasPermission
+                });
+            } else {
+                res.status(400).json({ 
+                    success: false, 
+                    error: result.message 
+                });
+            }
+        } catch (error) {
+            console.error('Check access error:', error);
+            res.status(500).json({ 
+                success: false, 
+                error: "Internal server error" 
+            });
+        }
     }
 };
 
@@ -395,3 +433,6 @@ export {
     checkDoctorPermissions,
     grantDoctorRole
 };
+
+export default authController;
+
