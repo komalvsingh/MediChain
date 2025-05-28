@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   usertype: String,
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  walletAddress: String,
+  walletAddress: { type: String, unique: true }, // 🔐 Ensure unique wallet per user
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

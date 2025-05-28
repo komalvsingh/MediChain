@@ -9,6 +9,7 @@ import http from 'http';
 import { initializeWebSocket } from './server/websocket.js';
 import chatRoutes from './routes/chat.js';
 
+
 dotenv.config();
 
 const app = express();
@@ -63,6 +64,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/blockchain', blockchainRoutes);
+
+
 
 const PORT = process.env.PORT || 5000;
 
