@@ -59,16 +59,70 @@ export const getPatients = async (req, res) => {
 
 export const getDoctors = async (req, res) => {
   try {
-    const patients = await User.find({ usertype: 'Doctor' }).select('-password');
-    res.status(200).json(patients);
+    const doctors = await User.find({ usertype: 'Doctor' }).select('-password');
+    res.status(200).json(doctors);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch patients', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch doctors', details: err.message });
+  }
+};
+
+// NEW: Get doctor by wallet address
+export const getDoctorByWallet = async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    
+    if (!walletAddress) {
+      return res.status(400).json({ error: 'Wallet address is required' });
+    }
+
+    const doctor = await User.findOne({ 
+      walletAddress: walletAddress.toLowerCase(), // Case insensitive search
+      usertype: 'Doctor' 
+    }).select('-password');
+
+    if (!doctor) {
+      return res.status(404).json({ error: 'Doctor not found with this wallet address' });
+    }
+
+    res.status(200).json(doctor);
+  } catch (err) {
+    console.error('Error fetching doctor by wallet:', err);
+    res.status(500).json({ error: 'Failed to fetch doctor', details: err.message });
+  }
+};
+
+// NEW: Get patient by wallet address
+export const getPatientByWallet = async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    
+    if (!walletAddress) {
+      return res.status(400).json({ error: 'Wallet address is required' });
+    }
+
+    const patient = await User.findOne({ 
+      walletAddress: walletAddress.toLowerCase(), // Case insensitive search
+      usertype: 'Patient' 
+    }).select('-password');
+
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found with this wallet address' });
+    }
+
+    res.status(200).json(patient);
+  } catch (err) {
+    console.error('Error fetching patient by wallet:', err);
+    res.status(500).json({ error: 'Failed to fetch patient', details: err.message });
   }
 };
 
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
 import { fileURLToPath } from 'url';
 
 // Get current file's directory
