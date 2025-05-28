@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FileText, Download, Calendar, User, Wallet, RefreshCw, AlertCircle, ArrowLeft, Send, Shield, Clock, Check, X, Users } from 'lucide-react';
+import { FileText, Download, Calendar, User, Wallet, RefreshCw, AlertCircle, ArrowLeft, Send, Shield, Clock } from 'lucide-react';
 import { ethers } from 'ethers';
 import MedVaultABI from '../abis/MedVaultAbi.json';
 import HealthIDABI from '../abis/HealthIdAbi.json';
@@ -20,13 +20,8 @@ const PatientRecordsTab = () => {
   const [contract, setContract] = useState(null);
   const [healthIDContract, setHealthIDContract] = useState(null);
   const [account, setAccount] = useState(null);
-  const [pendingRequests, setPendingRequests] = useState([]);
-  const [grantedAccess, setGrantedAccess] = useState([]);
-  const [isPatientView, setIsPatientView] = useState(false);
-  const [processingApproval, setProcessingApproval] = useState(false);
-  const [revokingAccess, setRevokingAccess] = useState(false);
 
-  const MEDVAULT_CONTRACT_ADDRESS = "0xD51BEd74dBAf5A3A114bc4973E23676a878A4DAD";
+  const MEDVAULT_CONTRACT_ADDRESS = "0x5FB4f0D8f07918a97dc5719C50aF7277872683C1";
   const HEALTHID_CONTRACT_ADDRESS = "0x0926920E743431343D90edA86F1B276350DA5A89";
 
   // Initialize blockchain connection
@@ -67,13 +62,6 @@ const PatientRecordsTab = () => {
     initializeBlockchain();
   }, []);
 
-  // Check if current user is the patient
-  useEffect(() => {
-    if (account && patient?.walletAddress) {
-      setIsPatientView(account.toLowerCase() === patient.walletAddress.toLowerCase());
-    }
-  }, [account, patient?.walletAddress]);
-
   // Check access status and HealthID
   useEffect(() => {
     const checkStatus = async () => {
@@ -93,11 +81,6 @@ const PatientRecordsTab = () => {
         if (balance > 0) {
           setUserHealthID('Available');
         }
-
-        // If this is patient view, we might want to show pending requests from doctors
-        // Note: Contract doesn't have a direct way to get all pending requests
-        // This would need to be implemented by listening to events or maintaining a list
-        
       } catch (error) {
         console.error('Error checking status:', error);
       }
@@ -144,7 +127,7 @@ const PatientRecordsTab = () => {
       const reports = await contract.getReports(patient.walletAddress);
       const formattedReports = reports.map((ipfsHash, index) => ({
         ipfsHash,
-        fileName: Medical Report ${index + 1},
+        fileName: `Medical Report ${index + 1}`,
         date: new Date().toLocaleDateString(),
         description: 'Medical report stored on IPFS'
       }));
@@ -195,7 +178,7 @@ const PatientRecordsTab = () => {
       const receipt = await tx.wait();
       console.log('Transaction confirmed:', receipt);
       
-      alert(Access request sent to ${patient.name}!\nTransaction: ${tx.hash}\nWaiting for patient approval.);
+      alert(`Access request sent to ${patient.name}!\nTransaction: ${tx.hash}\nWaiting for patient approval.`);
       setHasPendingRequest(true);
       
     } catch (error) {
@@ -206,119 +189,13 @@ const PatientRecordsTab = () => {
         errorMessage = 'Transaction cancelled by user';
       } else if (error.message.includes('insufficient funds')) {
         errorMessage = 'Insufficient funds for gas';
-      } else if (error.reason === "Cannot request access to own records") {
-        errorMessage = 'You cannot request access to your own records';
-      } else if (error.reason === "Access already granted") {
-        errorMessage = 'Access has already been granted';
       } else if (error.reason) {
         errorMessage = error.reason;
       }
       
-      alert(Error: ${errorMessage});
+      alert(`Error: ${errorMessage}`);
     } finally {
       setRequestingAccess(false);
-    }
-  };
-
-  // Approve or deny access request (for patients)
-  const handleApproveAccess = async (doctorAddress, grant) => {
-    if (!contract) {
-      alert('Contract not initialized');
-      return;
-    }
-
-    try {
-      setProcessingApproval(true);
-      
-      // Check if there's a pending request
-      const pending = await contract.hasPendingRequest(account, doctorAddress);
-      if (!pending) {
-        alert('No pending request from this doctor');
-        return;
-      }
-
-      const gasEstimate = await contract.approveAccess.estimateGas(doctorAddress, grant);
-      const gasLimit = gasEstimate * 120n / 100n;
-      
-      const tx = await contract.approveAccess(doctorAddress, grant, { gasLimit });
-      console.log('Approval transaction:', tx.hash);
-      
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
-      
-      alert(Access ${grant ? 'granted' : 'denied'} successfully!\nTransaction: ${tx.hash});
-      
-      // Refresh status
-      await checkStatus();
-      
-    } catch (error) {
-      console.error('Error processing approval:', error);
-      let errorMessage = 'Failed to process approval';
-      
-      if (error.code === 4001) {
-        errorMessage = 'Transaction cancelled by user';
-      } else if (error.reason === "No pending request from this doctor") {
-        errorMessage = 'No pending request from this doctor';
-      } else if (error.reason) {
-        errorMessage = error.reason;
-      }
-      
-      alert(Error: ${errorMessage});
-    } finally {
-      setProcessingApproval(false);
-    }
-  };
-
-  // Revoke access (for patients)
-  const handleRevokeAccess = async (doctorAddress) => {
-    if (!contract) {
-      alert('Contract not initialized');
-      return;
-    }
-
-    try {
-      setRevokingAccess(true);
-      
-      const gasEstimate = await contract.revokeAccess.estimateGas(doctorAddress);
-      const gasLimit = gasEstimate * 120n / 100n;
-      
-      const tx = await contract.revokeAccess(doctorAddress, { gasLimit });
-      console.log('Revoke access transaction:', tx.hash);
-      
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
-      
-      alert(Access revoked successfully!\nTransaction: ${tx.hash});
-      
-      // Refresh status
-      await checkStatus();
-      
-    } catch (error) {
-      console.error('Error revoking access:', error);
-      let errorMessage = 'Failed to revoke access';
-      
-      if (error.code === 4001) {
-        errorMessage = 'Transaction cancelled by user';
-      } else if (error.reason) {
-        errorMessage = error.reason;
-      }
-      
-      alert(Error: ${errorMessage});
-    } finally {
-      setRevokingAccess(false);
-    }
-  };
-
-  // Check pending request status using contract helper function
-  const checkRequestStatus = async (doctorAddress) => {
-    if (!contract || !account) return { pending: false, granted: false };
-    
-    try {
-      const result = await contract.getPendingRequestStatus(account, doctorAddress);
-      return { pending: result.pending, granted: result.granted };
-    } catch (error) {
-      console.error('Error checking request status:', error);
-      return { pending: false, granted: false };
     }
   };
 
@@ -329,7 +206,7 @@ const PatientRecordsTab = () => {
         return;
       }
 
-      const ipfsUrl = https://ipfs.io/ipfs/${ipfsHash};
+      const ipfsUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
       window.open(ipfsUrl, '_blank');
     } catch (err) {
       console.error('Download failed:', err);
@@ -362,16 +239,12 @@ const PatientRecordsTab = () => {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">
-                  {isPatientView ? 'My Medical Records' : 'Medical Records'}
-                </h1>
-                <p className="text-sm text-gray-600">
-                  {isPatientView ? 'Manage your medical records and access permissions' : Patient: ${patient.name}}
-                </p>
+                <h1 className="text-xl font-semibold text-gray-900">Medical Records</h1>
+                <p className="text-sm text-gray-600">Patient: {patient.name}</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              {!isPatientView && !hasAccess && (
+              {!hasAccess && account?.toLowerCase() !== patient.walletAddress?.toLowerCase() && (
                 <button
                   onClick={handleRequestAccess}
                   disabled={requestingAccess || hasPendingRequest}
@@ -423,7 +296,7 @@ const PatientRecordsTab = () => {
                   <Wallet className="h-4 w-4 text-gray-500" />
                   <span className="text-sm text-gray-600 font-mono">
                     {patient.walletAddress ? 
-                      ${patient.walletAddress.slice(0, 6)}...${patient.walletAddress.slice(-4)} : 
+                      `${patient.walletAddress.slice(0, 6)}...${patient.walletAddress.slice(-4)}` : 
                       'No wallet connected'
                     }
                   </span>
@@ -431,15 +304,10 @@ const PatientRecordsTab = () => {
                 <div className="flex items-center space-x-2 mt-2">
                   <Shield className="h-4 w-4 text-gray-500" />
                   <span className={`text-sm font-medium ${
-                    isPatientView
-                      ? 'text-blue-600' 
-                      : hasAccess 
-                        ? 'text-green-600' 
-                        : hasPendingRequest 
-                          ? 'text-yellow-600' 
-                          : 'text-red-600'
+                    hasAccess || account?.toLowerCase() === patient.walletAddress?.toLowerCase() 
+                      ? 'text-green-600' : hasPendingRequest ? 'text-yellow-600' : 'text-red-600'
                   }`}>
-                    {isPatientView
+                    {account?.toLowerCase() === patient.walletAddress?.toLowerCase() 
                       ? 'Own Records' 
                       : hasAccess 
                         ? 'Access Granted' 
@@ -460,41 +328,12 @@ const PatientRecordsTab = () => {
           </div>
         </div>
 
-        {/* Access Management Section (for patients) */}
-        {isPatientView && (
-          <div className="bg-white rounded-lg shadow-sm mb-8">
-            <div className="px-6 py-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                <Users className="h-5 w-5 mr-2" />
-                Access Management
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Manage who can access your medical records
-              </p>
-            </div>
-            <div className="p-6">
-              <div className="text-center py-8">
-                <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Access Management</h3>
-                <p className="text-gray-600 mb-4">
-                  To manage access requests and permissions, you would need to implement event listening 
-                  or maintain a list of doctors who have requested access.
-                </p>
-                <p className="text-sm text-gray-500">
-                  The contract supports approveAccess() and revokeAccess() functions, 
-                  but requires additional implementation to track and display pending requests.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Medical Reports */}
         <div className="bg-white rounded-lg shadow-sm">
           <div className="px-6 py-4 border-b">
             <h3 className="text-lg font-semibold text-gray-900">Medical Reports</h3>
             <p className="text-sm text-gray-600 mt-1">
-              {loading ? 'Loading...' : ${medicalReports.length} report(s) found}
+              {loading ? 'Loading...' : `${medicalReports.length} report(s) found`}
             </p>
           </div>
 
@@ -509,7 +348,7 @@ const PatientRecordsTab = () => {
                 <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Reports</h3>
                 <p className="text-gray-600 mb-4">{error}</p>
-                {error.includes('permission') && !hasPendingRequest && !isPatientView && (
+                {error.includes('permission') && !hasPendingRequest && (
                   <button
                     onClick={handleRequestAccess}
                     disabled={requestingAccess}

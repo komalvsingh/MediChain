@@ -14,7 +14,6 @@ export const Sidebar = ({ activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'overview', icon: Activity, label: 'Overview' },
     { id: 'patients', icon: Users, label: 'Patients' },
-    { id: 'healthid-patients', icon: UserCheck, label: 'HealthID Patients' },
     { id: 'requests', icon: Shield, label: 'Access Requests' },
     { id: 'appointments', icon: Calendar, label: 'Appointments' },
     { id: 'profile', icon: User, label: 'Profile' },
