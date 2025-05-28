@@ -12,6 +12,7 @@ const SignUpForm = ({ onSuccess }) => {
     gender: "",
     email: "",
     password: "",
+    walletAddress:""
   });
 
   const [loading, setLoading] = useState(false);
@@ -42,9 +43,10 @@ const SignUpForm = ({ onSuccess }) => {
 
       // POST to backend
       const res = await axios.post("http://localhost:5000/api/auth/signup", {
-        ...form,
-        wallet,
-      });
+  ...form,
+  walletAddress: wallet,
+});
+
 
       // Save token (optional)
       localStorage.setItem("token", res.data.token);

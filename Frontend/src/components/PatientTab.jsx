@@ -3,7 +3,7 @@ import { Search, MapPin, Star, MessageCircle, Clock, Bell, Circle, Heart, Activi
 import axios from 'axios';
 import { useWebSocket } from '../hooks/useWebSocket';
 import ChatModal from './ChatModal';
-import { Link } from 'react-router-dom';
+import ViewRecordsButton from './Viewrecordbutton'; // Import the new component
 
 export const PatientsTab = () => {
   const [patients, setPatients] = useState([]);
@@ -29,17 +29,25 @@ export const PatientsTab = () => {
 
   useEffect(() => {
     const fetchPatients = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/auth/patients", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setPatients(res.data);
-      } catch (error) {
-        console.error("Error fetching patients:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  try {
+    const res = await axios.get("http://localhost:5000/api/auth/patients", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // Ensure each patient has the required fields for PatientRecordsTab
+    const patientsWithRequiredFields = res.data.map(patient => ({
+      ...patient,
+      walletAddress: patient.walletAddress || null, // Ensure this field exists
+      _id: patient._id // Ensure patient ID is available
+    }));
+    
+    setPatients(patientsWithRequiredFields);
+  } catch (error) {
+    console.error("Error fetching patients:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
     const fetchCurrentUser = async () => {
       try {
@@ -351,9 +359,8 @@ export const PatientsTab = () => {
 
               {/* Action Buttons */}
               <div className="flex space-x-2">
-                <button className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:shadow-lg transition-all text-sm">
-                  <Link to="/record">View Records</Link>
-                </button>
+                {/* Using the new ViewRecordsButton component */}
+                <ViewRecordsButton patient={patient} />
                 <button 
                   onClick={() => openChat(patient)}
                   className={`px-3 py-2 rounded-lg transition-all relative ${
