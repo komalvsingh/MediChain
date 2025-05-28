@@ -1,6 +1,6 @@
 import React from "react";
-import { useState } from "react";
-
+import { useState, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
 export const ProfileForm = () => {
   const [formData, setFormData] = useState({
@@ -25,10 +25,49 @@ export const ProfileForm = () => {
     }));
   };
 
-  const handleSubmit = () => {
-    console.log('Profile updated:', formData);
-    // Handle form submission logic here
-    alert('Profile updated successfully!');
+  const { user } = useContext(AuthContext);
+
+  const handleSubmit = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Authentication token not found. Please log in.");
+        return;
+      }
+
+      // Check if user exists and has an ID
+      if (!user || !user._id) {
+        alert("User information not available. Please log in again.");
+        return;
+      }
+
+      // Include userId in the request body
+      const requestData = {
+        ...formData,
+        userId: user._id  // Add the user ID from context
+      };
+
+      const response = await fetch("http://localhost:5000/api/doctors/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(requestData)  // Send data with userId
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update profile");
+      }
+
+      alert("Profile updated successfully!");
+      console.log("Server response:", data);
+    } catch (error) {
+      console.error("Error submitting profile:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   return (

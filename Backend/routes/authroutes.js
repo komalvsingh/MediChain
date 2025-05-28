@@ -20,6 +20,7 @@ router.get('/me', protect, getUserProfile);
 
 // User listing routes
 router.get('/patients', getPatients);
+router.get('/patients', getPatients); //
 router.get('/doctors', getDoctors);
 
 // NEW: Wallet address lookup routes (for access request functionality)
@@ -31,8 +32,9 @@ router.post('/upload-report', authController.uploadReport);
 router.get('/patient-reports/:patientAddress', authController.getPatientReports);
 
 // Access Management Routes
-router.post('/request-access', authController.requestAccess);
-router.post('/approve-access', authController.approveAccess);
+router.post('/request-access', authController.requestAccess);//
+router.post('/approve-access', authController.approveAccess);//
+router.get('/check-access/:patientAddress', authController.checkAccess);
 
 // Admin Routes
 router.post('/grant-doctor-role', authController.grantDoctorRole);

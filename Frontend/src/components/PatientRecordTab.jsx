@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FileText, Download, Calendar, User, Wallet, RefreshCw, AlertCircle, ArrowLeft, Send, Shield, Clock, Check, X, Users } from 'lucide-react';
+import { FileText, Download, Calendar, User, Wallet, RefreshCw, AlertCircle, ArrowLeft, Lock, Unlock, Send, Shield, Clock, Check, X, Users } from 'lucide-react';
+import { useMediChain } from '../context/BlockChainContext';
+
 import { ethers } from 'ethers';
 import MedVaultABI from '../abis/MedVaultAbi.json';
 import HealthIDABI from '../abis/HealthIdAbi.json';
@@ -9,6 +11,8 @@ const PatientRecordsTab = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { patient } = location.state || {};
+  const { requestDoctorAccess } = useMediChain();
+
 
   const [medicalReports, setMedicalReports] = useState([]);
   const [userHealthID, setUserHealthID] = useState(null);
@@ -119,8 +123,50 @@ const PatientRecordsTab = () => {
       return;
     }
     
-    fetchPatientReports();
+    checkAccessStatus();
   }, [patient, contract, account, hasAccess]);
+
+  const checkAccessStatus = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`http://localhost:5000/api/auth/check-access/${patient.walletAddress}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to check access status');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setAccessStatus(data.hasAccess ? 'granted' : 'denied');
+        if (data.hasAccess) {
+          fetchPatientReports();
+        }
+      } else {
+        throw new Error(data.error || 'Failed to check access status');
+      }
+      
+    } catch (err) {
+      console.error('Error checking access status:', err);
+      setError(err.message);
+      setAccessStatus('unknown');
+      setLoading(false);
+    }
+  };
 
   const fetchPatientReports = async () => {
     if (!contract || !account || !patient?.walletAddress) {
@@ -321,6 +367,34 @@ const PatientRecordsTab = () => {
       return { pending: false, granted: false };
     }
   };
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await checkAccessStatus();
+    setRefreshing(false);
+  };
+
+  const handleRequestAccess = async () => {
+    if (!patient.walletAddress) {
+      alert("Patient doesn't have a connected wallet address");
+      return;
+    }
+
+    try {
+      setRequestingAccess(true);
+      setAccessStatus('requesting');
+
+      await requestDoctorAccess(patient.walletAddress);
+
+      setAccessStatus('pending');
+      alert(`Access request sent to ${patient.name}`);
+    } catch (error) {
+      console.error("Error requesting access:", error);
+      setAccessStatus('error');
+      alert(`Error requesting access: ${error.message}`);
+    } finally {
+      setRequestingAccess(false);
+    }
+  };
 
   const handleDownload = async (ipfsHash, fileName) => {
     try {
@@ -454,8 +528,43 @@ const PatientRecordsTab = () => {
               <p className="text-sm text-gray-500">Age: {patient.age}</p>
               <p className="text-sm text-gray-500">Gender: {patient.gender}</p>
               {userHealthID && (
-                <p className="text-sm text-blue-600 font-semibold mt-2">Health ID: {userHealthID}</p>
+                <p className="text-sm text-blue-600 font-semibold mt-2">
+                  Health ID: {userHealthID}
+                </p>
               )}
+              {reportCount > 0 && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Total Reports: {reportCount}
+                </p>
+              )}
+              <div className="mt-3">
+                {accessStatus === 'granted' ? (
+                  <div className="flex items-center justify-end space-x-2 text-green-600">
+                    <Unlock className="h-4 w-4" />
+                    <span className="text-sm font-medium">Access Granted</span>
+                  </div>
+                ) : accessStatus === 'denied' || accessStatus === 'unknown' ? (
+                  <div className="flex flex-col items-end space-y-2">
+                    <div className="flex items-center space-x-2 text-red-600">
+                      <Lock className="h-4 w-4" />
+                      <span className="text-sm font-medium">Access Required</span>
+                    </div>
+                    <button
+                      onClick={handleRequestAccess}
+                      disabled={requestingAccess || accessStatus === 'pending' || accessStatus === 'requesting'}
+                      className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                    >
+                      {accessStatus === 'pending' ? 'Request Pending' : 
+                       accessStatus === 'requesting' ? 'Requesting...' : 'Request Access'}
+                    </button>
+                  </div>
+                ) : accessStatus === 'pending' ? (
+                  <div className="flex items-center justify-end space-x-2 text-yellow-600">
+                    <RefreshCw className="h-4 w-4" />
+                    <span className="text-sm font-medium">Access Pending</span>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>

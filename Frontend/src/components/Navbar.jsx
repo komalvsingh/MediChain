@@ -11,6 +11,8 @@ import { useNavigate } from "react-router-dom";
 
 const Navbar = () => {
   const [wallet, setWallet] = useState(null);
+  const [doctorName, setDoctorName] = useState("");
+
   const navigate = useNavigate();
 
   const [mintStatus, setMintStatus] = useState({
@@ -98,17 +100,27 @@ const Navbar = () => {
 
   // Optional: Check if wallet is already connected on load
   useEffect(() => {
-    const checkWalletConnection = async () => {
-      if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" });
-        if (accounts.length > 0) {
-          setWallet(accounts[0]);
-          await connectBlockchainWallet();
+    const fetchDoctorInfo = async () => {
+      if (user && user._id) {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await axios.get(`http://localhost:5000/api/doctors/${user._id}`, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (response.data?.name) {
+            setDoctorName(response.data.name);
+          }
+        } catch (error) {
+          console.error("Error fetching doctor name:", error);
         }
       }
     };
-    checkWalletConnection();
-  }, []);
+  
+    fetchDoctorInfo();
+  }, [user]);
+  
 
   return (
     <nav className="flex items-center justify-between bg-white p-4 shadow-md">
