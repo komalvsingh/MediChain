@@ -9,6 +9,7 @@ import HealthRecordsTab from '../components/HealthRecordsTab';
 import ZKPVerificationTab from '../components/ZKPVerificationTab';
 import { AccessRequestsPanel } from '../components/AccessRequest';
 import GuardianManagement from '../components/GuardianManagement';
+import ImageAnalyzer from '../components/ImageAnalyzer';
 
 const PatientDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -54,6 +55,8 @@ const PatientDashboard = () => {
         return <ZKPVerificationTab />;
       case 'guardian-management':
         return <GuardianManagement />;
+      case 'image-analyze':
+          return <ImageAnalyzer />;
       default:
         return <DashboardTab wearableData={wearableData} />;
     }
