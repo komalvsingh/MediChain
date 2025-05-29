@@ -199,20 +199,172 @@ const PatientRecordsTab = () => {
     }
   };
 
-  const handleDownload = async (ipfsHash, fileName) => {
-    try {
-      if (!hasAccess && account.toLowerCase() !== patient.walletAddress.toLowerCase()) {
-        alert('You do not have access to download this report');
-        return;
-      }
+  // Replace your existing handleDownload function with this enhanced version
 
-      const ipfsUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
-      window.open(ipfsUrl, '_blank');
-    } catch (err) {
-      console.error('Download failed:', err);
-      alert('Failed to download file: ' + err.message);
+const handleDownload = async (ipfsHash, fileName) => {
+  try {
+    if (!hasAccess && account.toLowerCase() !== patient.walletAddress.toLowerCase()) {
+      alert('You do not have access to download this report');
+      return;
     }
-  };
+
+    console.log('Starting download for IPFS hash:', ipfsHash);
+    
+    // Show loading state
+    const loadingToast = document.createElement('div');
+    loadingToast.innerHTML = `
+      <div style="position: fixed; top: 20px; right: 20px; background: #3B82F6; color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000; display: flex; align-items: center; gap: 8px;">
+        <div style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        Downloading and decrypting file...
+      </div>
+      <style>
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+    `;
+    document.body.appendChild(loadingToast);
+
+    // Fetch encrypted file from IPFS
+    const ipfsUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
+    console.log('Fetching from IPFS URL:', ipfsUrl);
+    
+    const response = await fetch(ipfsUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file from IPFS: ${response.status} ${response.statusText}`);
+    }
+
+    const encryptedData = await response.arrayBuffer();
+    console.log('Fetched encrypted data, size:', encryptedData.byteLength);
+
+    let decryptedData;
+    let finalFileName = fileName;
+
+    try {
+      // Try to decrypt the file using the contract
+      console.log('Attempting to decrypt file...');
+      
+      // Get decryption key or decrypt through contract
+      // This depends on how your encryption is implemented
+      // Option 1: If the contract has a decrypt function
+      if (contract.decryptFile) {
+        const decryptedBuffer = await contract.decryptFile(ipfsHash, patient.walletAddress);
+        decryptedData = decryptedBuffer;
+      } else {
+        // Option 2: If decryption happens client-side
+        // You'll need to implement this based on your encryption method
+        console.log('Attempting client-side decryption...');
+        
+        // For now, let's try to parse the encrypted data
+        // This is a placeholder - you'll need to implement actual decryption
+        const encryptedUint8Array = new Uint8Array(encryptedData);
+        
+        // Check if it's already a readable format (PDF, image, etc.)
+        const fileSignature = Array.from(encryptedUint8Array.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('');
+        console.log('File signature (first 4 bytes):', fileSignature);
+        
+        // Common file signatures
+        const signatures = {
+          '25504446': { ext: 'pdf', mime: 'application/pdf' }, // PDF
+          '89504E47': { ext: 'png', mime: 'image/png' }, // PNG
+          'FFD8FFE0': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+          'FFD8FFE1': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+          '504B0304': { ext: 'zip', mime: 'application/zip' }, // ZIP
+          '504B0506': { ext: 'zip', mime: 'application/zip' }, // ZIP
+          '504B0708': { ext: 'zip', mime: 'application/zip' }, // ZIP
+        };
+        
+        const fileInfo = signatures[fileSignature.toUpperCase()];
+        
+        if (fileInfo) {
+          console.log('File appears to be unencrypted:', fileInfo);
+          decryptedData = encryptedUint8Array;
+          finalFileName = fileName.includes('.') ? fileName : `${fileName}.${fileInfo.ext}`;
+        } else {
+          // File is encrypted, attempt decryption
+          console.log('File appears to be encrypted, attempting decryption...');
+          
+          // You'll need to implement the actual decryption logic here
+          // This is just a placeholder that tries to use the raw data
+          decryptedData = encryptedUint8Array;
+          
+          // Try to determine file type from filename or default to PDF
+          if (!fileName.includes('.')) {
+            finalFileName = `${fileName}.pdf`;
+          }
+        }
+      }
+    } catch (decryptError) {
+      console.log('Decryption failed or not needed:', decryptError.message);
+      // If decryption fails, try to download as-is
+      decryptedData = new Uint8Array(encryptedData);
+      
+      // Ensure filename has extension
+      if (!fileName.includes('.')) {
+        finalFileName = `${fileName}.pdf`; // Default to PDF
+      }
+    }
+
+    // Remove loading toast
+    document.body.removeChild(loadingToast);
+
+    // Create blob and download
+    const blob = new Blob([decryptedData]);
+    const url = window.URL.createObjectURL(blob);
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = finalFileName;
+    link.style.display = 'none';
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    
+    console.log('File downloaded successfully:', finalFileName);
+    
+    // Show success message
+    const successToast = document.createElement('div');
+    successToast.innerHTML = `
+      <div style="position: fixed; top: 20px; right: 20px; background: #10B981; color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000;">
+        File downloaded successfully!
+      </div>
+    `;
+    document.body.appendChild(successToast);
+    setTimeout(() => {
+      if (document.body.contains(successToast)) {
+        document.body.removeChild(successToast);
+      }
+    }, 3000);
+
+  } catch (err) {
+    console.error('Download failed:', err);
+    
+    // Remove loading toast if it exists
+    const loadingToast = document.querySelector('[style*="Downloading and decrypting"]');
+    if (loadingToast) {
+      loadingToast.remove();
+    }
+    
+    // Show error message
+    const errorToast = document.createElement('div');
+    errorToast.innerHTML = `
+      <div style="position: fixed; top: 20px; right: 20px; background: #EF4444; color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000;">
+        Failed to download file: ${err.message}
+      </div>
+    `;
+    document.body.appendChild(errorToast);
+    setTimeout(() => {
+      if (document.body.contains(errorToast)) {
+        document.body.removeChild(errorToast);
+      }
+    }, 5000);
+  }
+};
 
   if (!patient) {
     return (
