@@ -87,28 +87,28 @@ const GuardianManagement = () => {
   }, [guardianContract, provider, account]);
 
   // Helper function to safely parse contract results
-  const parseContractResult = (result, expectedType = 'array') => {
+  const parseContractResult = (result, expectedType = "array") => {
     try {
-      if (!result) return expectedType === 'array' ? [] : null;
-      
+      if (!result) return expectedType === "array" ? [] : null;
+
       // Handle ethers Result objects
       if (result._isIndexed !== undefined || result.toArray) {
         // This is an ethers Result object
         return result.toArray ? result.toArray() : Array.from(result);
       }
-      
+
       // Handle regular arrays
       if (Array.isArray(result)) {
         return result;
       }
-      
+
       // Handle single values
-      if (expectedType === 'boolean') {
+      if (expectedType === "boolean") {
         return Boolean(result);
       }
-      
+
       // Try to convert to array if expected
-      if (expectedType === 'array') {
+      if (expectedType === "array") {
         try {
           return Array.from(result);
         } catch (e) {
@@ -116,11 +116,11 @@ const GuardianManagement = () => {
           return [];
         }
       }
-      
+
       return result;
     } catch (err) {
       console.error("Error parsing contract result:", err);
-      return expectedType === 'array' ? [] : null;
+      return expectedType === "array" ? [] : null;
     }
   };
 
@@ -169,17 +169,25 @@ const GuardianManagement = () => {
         // Load guardians with better error handling
         try {
           console.log("Loading guardians for account:", account);
-          const currentGuardiansRaw = await guardianContract.getGuardians(account);
-          console.log("Raw guardians result:", currentGuardiansRaw);
-          
-          const currentGuardians = parseContractResult(currentGuardiansRaw, 'array');
-          console.log("Parsed guardians:", currentGuardians);
-          
-          // Filter out empty addresses (0x0000...)
-          const validGuardians = currentGuardians.filter(guardian => 
-            guardian && guardian !== ethers.ZeroAddress && guardian.length > 10
+          const currentGuardiansRaw = await guardianContract.getGuardians(
+            account
           );
-          
+          console.log("Raw guardians result:", currentGuardiansRaw);
+
+          const currentGuardians = parseContractResult(
+            currentGuardiansRaw,
+            "array"
+          );
+          console.log("Parsed guardians:", currentGuardians);
+
+          // Filter out empty addresses (0x0000...)
+          const validGuardians = currentGuardians.filter(
+            (guardian) =>
+              guardian &&
+              guardian !== ethers.ZeroAddress &&
+              guardian.length > 10
+          );
+
           setGuardians(validGuardians);
         } catch (guardianErr) {
           console.error("Error loading guardians:", guardianErr);
@@ -190,19 +198,20 @@ const GuardianManagement = () => {
         // Load emergency status with better error handling
         try {
           console.log("Loading emergency status for account:", account);
-          const activeRaw = await medVaultContract.emergencyAccessActive(account);
+          const activeRaw = await medVaultContract.emergencyAccessActive(
+            account
+          );
           console.log("Raw emergency access active value:", activeRaw);
 
-          const isActive = parseContractResult(activeRaw, 'boolean');
+          const isActive = parseContractResult(activeRaw, "boolean");
           console.log("Parsed emergency active:", isActive);
-          
+
           setEmergencyActive(isActive);
         } catch (emergencyErr) {
           console.error("Error loading emergency status:", emergencyErr);
           // Don't throw, just log and continue
           setEmergencyActive(false);
         }
-
       } catch (err) {
         console.error("Error in loadData:", err);
         setError("Failed to load guardian data. Please try refreshing.");
@@ -212,7 +221,12 @@ const GuardianManagement = () => {
     };
 
     // Only load data when contracts are properly initialized
-    if (contractInitialized && guardianContract && medVaultContract && account) {
+    if (
+      contractInitialized &&
+      guardianContract &&
+      medVaultContract &&
+      account
+    ) {
       loadData();
     }
   }, [account, guardianContract, medVaultContract, contractInitialized]);
@@ -256,10 +270,16 @@ const GuardianManagement = () => {
 
       // Refresh guardians list with safe parsing
       try {
-        const updatedGuardiansRaw = await guardianContract.getGuardians(account);
-        const updatedGuardians = parseContractResult(updatedGuardiansRaw, 'array');
-        const validGuardians = updatedGuardians.filter(guardian => 
-          guardian && guardian !== ethers.ZeroAddress && guardian.length > 10
+        const updatedGuardiansRaw = await guardianContract.getGuardians(
+          account
+        );
+        const updatedGuardians = parseContractResult(
+          updatedGuardiansRaw,
+          "array"
+        );
+        const validGuardians = updatedGuardians.filter(
+          (guardian) =>
+            guardian && guardian !== ethers.ZeroAddress && guardian.length > 10
         );
         setGuardians(validGuardians);
       } catch (refreshErr) {
@@ -291,19 +311,27 @@ const GuardianManagement = () => {
 
     try {
       const guardiansRaw = await guardianContract.getGuardians(patientAddress);
-      const guardiansList = parseContractResult(guardiansRaw, 'array');
-      
-      setIsGuardianForPatient(guardiansList.includes(account));
+      const guardiansList = parseContractResult(guardiansRaw, "array");
+
+      setIsGuardianForPatient(
+        guardiansList
+          .map((addr) => addr.toLowerCase())
+          .includes(account.toLowerCase())
+      );
 
       try {
-        const statusRaw = await guardianContract.getRequestStatus(patientAddress);
+        const statusRaw = await guardianContract.getRequestStatus(
+          patientAddress
+        );
         const status = parseContractResult(statusRaw);
-        
-        if (status && typeof status === 'object') {
+
+        if (status && typeof status === "object") {
           setRequestStatus({
             approvalsNeeded: status.approvalsNeeded || status[0] || 0,
             currentApprovals: status.currentApprovals || status[1] || 0,
-            unlockTime: new Date((status.unlockTime || status[2] || 0) * 1000),
+            unlockTime: new Date(
+              Number(status.unlockTime || status[2] || 0) * 1000
+            ),
             executed: status.executed || status[3] || false,
             active: status.active || status[4] || false,
           });
@@ -549,7 +577,7 @@ const GuardianManagement = () => {
                     "Approve Unlock"
                   )}
                 </button>
-                </div>
+              </div>
             )}
 
             {requestStatus?.executed && (
