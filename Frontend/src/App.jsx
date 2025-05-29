@@ -17,6 +17,7 @@ import MedicalReportAnalyzer from "./components/MedicalReportAnalyzer";
 import PrescriptionGenerator from "./components/PrescriptionGenerator";
 import HealthRecordsTab from "./components/HealthRecordsTab";
 import PatientRecordsTab from "./components/PatientRecordTab";
+import ImageAnalyzer from "./components/ImageAnalyzer";
 function App(){
   return(
     <>
@@ -31,6 +32,7 @@ function App(){
       <Route path="/doc-dashboard" element={<DoctorDashboard/>} />
       <Route path="/prescription" element={<PrescriptionGenerator/>} />
       <Route path="/patient-records" element={<PatientRecordsTab/>} />
+      
 
     </Routes>
   

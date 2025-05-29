@@ -17,7 +17,8 @@ const NavigationTabs = ({ activeTab, setActiveTab }) => {
     { id: 'health-records', label: 'Health Records', icon: FileText },
     { id: 'access-requests', label: 'Access Requests', icon: UserCheck },
     { id: 'zkp-verification', label: 'ZKP Verification', icon: Shield },
-    { id: 'guardian-management', label: 'Guardian Management', icon: Shield }
+    { id: 'guardian-management', label: 'Guardian Management', icon: Shield },
+    { id: 'image-analyze', label: 'Image Analyze', icon: Upload}
   ];
 
   return (

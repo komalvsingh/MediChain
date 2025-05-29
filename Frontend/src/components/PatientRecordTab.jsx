@@ -200,6 +200,9 @@ const PatientRecordsTab = () => {
   };
 
   // Replace your existing handleDownload function with this enhanced version
+// Replace your existing handleDownload function with this enhanced version
+
+  // Replace your existing handleDownload function with this enhanced version
 
 const handleDownload = async (ipfsHash, fileName) => {
   try {
