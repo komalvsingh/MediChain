@@ -20,11 +20,27 @@ from langdetect import detect
 
 from dotenv import load_dotenv
 
-# Langchain and ChromaDB imports
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
-from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# Alternative imports for Windows compatibility
+try:
+    # Try standard langchain imports first
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_community.vectorstores import Chroma
+    from langchain_community.document_loaders import TextLoader
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+except ImportError:
+    try:
+        # Fallback to older langchain imports
+        from langchain.embeddings import HuggingFaceEmbeddings
+        from langchain.vectorstores import Chroma
+        from langchain.document_loaders import TextLoader
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+    except ImportError:
+        # Final fallback - use sentence transformers directly
+        print("Warning: LangChain imports failed. Using basic text processing.")
+        HuggingFaceEmbeddings = None
+        Chroma = None
+        TextLoader = None
+        RecursiveCharacterTextSplitter = None
 
 # Load environment variables
 load_dotenv()
@@ -86,11 +102,30 @@ class DiagnosisResponse(BaseModel):
     urgency_level: str
     next_steps: List[str]
 
+def load_medical_data_simple(data_file=HEALTH_DATA_FILE):
+    """
+    Simple fallback method to load medical data without ChromaDB
+    """
+    try:
+        if os.path.exists(data_file):
+            with open(data_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return content
+        else:
+            return "Basic medical knowledge base not found."
+    except Exception as e:
+        print(f"Error loading medical data: {e}")
+        return ""
+
 def load_and_store_medical_data(data_file=HEALTH_DATA_FILE):
     """
     Load and store medical data from health.txt file in ChromaDB vector store
     """
     try:
+        if not HuggingFaceEmbeddings or not Chroma or not TextLoader:
+            print("ChromaDB not available, using simple text loading")
+            return load_medical_data_simple(data_file)
+            
         if not os.path.exists(data_file):
             print(f"Warning: {data_file} not found. Creating empty vector store.")
             # Create empty vector store
@@ -122,17 +157,24 @@ def load_and_store_medical_data(data_file=HEALTH_DATA_FILE):
         return db
     except Exception as e:
         print(f"Error loading medical data: {e}")
-        embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-        return Chroma(persist_directory=str(CHROMA_DIR), embedding_function=embeddings)
+        if HuggingFaceEmbeddings and Chroma:
+            embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+            return Chroma(persist_directory=str(CHROMA_DIR), embedding_function=embeddings)
+        else:
+            return load_medical_data_simple(data_file)
 
 # Initialize or load ChromaDB with medical data
 try:
-    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-    vectorstore = Chroma(
-        persist_directory=str(CHROMA_DIR), 
-        embedding_function=embeddings
-    )
-    print("Loaded existing medical vector store")
+    if HuggingFaceEmbeddings and Chroma:
+        embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+        vectorstore = Chroma(
+            persist_directory=str(CHROMA_DIR), 
+            embedding_function=embeddings
+        )
+        print("Loaded existing medical vector store")
+    else:
+        vectorstore = load_medical_data_simple()
+        print("Using simple text-based medical data")
 except:
     print("Creating new medical vector store")
     vectorstore = load_and_store_medical_data()
@@ -184,14 +226,17 @@ def text_to_speech(text, lang='en'):
 
 def retrieve_medical_context(query, top_k=5):
     """
-    Retrieve relevant medical context from ChromaDB
+    Retrieve relevant medical context from ChromaDB or simple text
     """
     try:
-        # Retrieve top k most similar medical documents
-        docs = vectorstore.similarity_search(query, k=top_k)
-        
-        # Combine retrieved documents into context
-        context = "\n\n".join([doc.page_content for doc in docs])
+        if hasattr(vectorstore, 'similarity_search'):
+            # ChromaDB available
+            docs = vectorstore.similarity_search(query, k=top_k)
+            context = "\n\n".join([doc.page_content for doc in docs])
+        else:
+            # Simple text fallback
+            context = vectorstore if isinstance(vectorstore, str) else ""
+            
         return context
     except Exception as e:
         print(f"Medical context retrieval error: {e}")

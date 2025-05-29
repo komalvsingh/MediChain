@@ -1,25 +1,15 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import List
 import os
 import json
-import requests
-import tempfile
-import math
 from langchain_groq import ChatGroq
 import logging
 from dotenv import load_dotenv
 
-# Import disease detection integration
-try:
-    from integrate_disease_detection import integrate_disease_detection
-    disease_detection_available = True
-except ImportError:
-    disease_detection_available = False
-    logging.warning("Disease detection module not available - image-based detection will be disabled")
-
 load_dotenv()
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,25 +27,9 @@ app.add_middleware(
 
 # Load environment variables
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
 
 if not GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY environment variable is required")
-
-if not GOOGLE_MAPS_API_KEY:
-    logger.warning("GOOGLE_MAPS_API_KEY not set - clinic search will be disabled")
-
-# Initialize models
-whisper_model = None
-try:
-    import whisper
-    whisper_model = whisper.load_model("base")
-    logger.info("Whisper model loaded successfully")
-except ImportError as e:
-    logger.warning(f"Whisper not available - voice processing will be disabled: {e}")
-except Exception as e:
-    logger.error(f"Failed to load Whisper model: {e}")
-    whisper_model = None
 
 # Initialize Groq LLM
 llm = ChatGroq(
@@ -67,41 +41,16 @@ llm = ChatGroq(
 # Pydantic models
 class TextSymptomRequest(BaseModel):
     symptoms: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-
-class ClinicInfo(BaseModel):
-    name: str
-    address: str
-    rating: Optional[float] = None
-    distance: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    phone: Optional[str] = None
-    place_id: Optional[str] = None
 
 class SymptomAnalysis(BaseModel):
     conditions: List[str]
+    detailed_description: str
+    possible_causes: List[str]
     tests: List[str]
     urgency: str
-    first_aid: Optional[str] = None
-    nearby_clinics: Optional[List[ClinicInfo]] = None
-
-def calculate_distance(lat1, lon1, lat2, lon2):
-    """Calculate distance between two coordinates using Haversine formula"""
-    R = 6371  # Earth's radius in kilometers
-    
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    
-    a = (math.sin(dlat/2) * math.sin(dlat/2) + 
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * 
-         math.sin(dlon/2) * math.sin(dlon/2))
-    
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    distance = R * c
-    
-    return round(distance, 1)
+    home_care_tips: str = None
+    when_to_seek_help: str
+    first_aid: str = None
 
 def translate_to_english(text: str) -> str:
     """Translate text to English if needed"""
@@ -126,32 +75,38 @@ Return only the English translation or the original text if already in English.
         logger.error(f"Translation error: {e}")
         return text  # Return original if translation fails
 
-def analyze_symptoms(symptoms: str) -> dict:
-    """Analyze symptoms using Groq LLM"""
+def analyze_symptoms_detailed(symptoms: str) -> dict:
+    """Enhanced symptom analysis with detailed descriptions"""
     try:
         # First translate to English if needed
         english_symptoms = translate_to_english(symptoms)
         
         prompt = f"""
-You are an experienced medical AI assistant. A patient describes their symptoms: "{english_symptoms}"
+You are an experienced medical AI assistant with comprehensive knowledge of symptoms, conditions, and medical care. A patient describes their symptoms: "{english_symptoms}"
 
-Please provide a detailed analysis in the following JSON format:
+Provide a thorough, informative analysis that helps the patient understand their symptoms better. Be specific about the conditions and provide educational information while emphasizing the importance of professional medical care.
+
+Please provide your analysis in the following JSON format (make sure to return ONLY valid JSON without any markdown formatting):
 {{
-    "conditions": ["list of 2-3 most probable conditions/diseases"],
-    "tests": ["list of recommended medical tests"],
-    "urgency": "Emergency/Moderate/Mild",
-    "first_aid": "immediate steps to take if urgency is Emergency or Moderate, null for Mild"
+    "conditions": ["list of 3-4 most probable conditions with brief explanations"],
+    "detailed_description": "comprehensive explanation of what these symptoms typically indicate, how they relate to each other, and what body systems might be involved",
+    "possible_causes": ["list of 4-6 potential underlying causes or triggers for these symptoms"],
+    "tests": ["list of specific medical tests or examinations that would help diagnose the condition"],
+    "urgency": "Emergency/High/Moderate/Low",
+    "home_care_tips": "practical self-care measures that may help alleviate symptoms (only for non-emergency cases)",
+    "when_to_seek_help": "specific warning signs or timeframes that indicate when immediate medical attention is needed",
+    "first_aid": "immediate steps to take if urgency is Emergency or High, otherwise null"
 }}
 
-Guidelines:
-- Be thorough but not alarming
-- Focus on common conditions first
-- For Emergency: life-threatening symptoms requiring immediate medical attention
-- For Moderate: symptoms that need medical consultation within 24-48 hours
-- For Mild: symptoms that can be monitored and may resolve with home care
-- Always recommend consulting a healthcare professional for proper diagnosis
+Urgency Guidelines:
+- Emergency: Life-threatening symptoms requiring immediate hospital care (chest pain with heart symptoms, severe breathing difficulty, signs of stroke, severe bleeding, etc.)
+- High: Symptoms that need medical attention within hours (high fever, severe pain, persistent vomiting, etc.)
+- Moderate: Symptoms that should be evaluated by a doctor within 1-3 days
+- Low: Symptoms that can be monitored and may resolve with home care, but should be discussed with a healthcare provider if persistent
 
-Respond only with valid JSON format.
+Important: Provide specific, educational information about the symptoms while always emphasizing that this is for informational purposes only and professional medical evaluation is necessary for proper diagnosis and treatment.
+
+Return ONLY the JSON object without any additional text, markdown formatting, or code blocks.
 """
         
         result = llm.invoke(prompt)
@@ -162,128 +117,81 @@ Respond only with valid JSON format.
         else:
             response_text = str(result).strip()
         
+        logger.info(f"Raw LLM response: {response_text}")
+        
+        # Clean the response to extract JSON
+        if response_text.startswith('```json'):
+            response_text = response_text[7:]
+        if response_text.startswith('```'):
+            response_text = response_text[3:]
+        if response_text.endswith('```'):
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
+        
         # Parse JSON response
         try:
             analysis = json.loads(response_text)
+            
+            # Validate and sanitize the response
+            required_fields = ['conditions', 'detailed_description', 'possible_causes', 'tests', 'urgency', 'when_to_seek_help']
+            for field in required_fields:
+                if field not in analysis:
+                    analysis[field] = get_default_value(field)
+            
+            # Ensure lists are properly formatted
+            if not isinstance(analysis.get('conditions', []), list):
+                analysis['conditions'] = [str(analysis.get('conditions', 'Unknown condition'))]
+            if not isinstance(analysis.get('possible_causes', []), list):
+                analysis['possible_causes'] = [str(analysis.get('possible_causes', 'Unknown cause'))]
+            if not isinstance(analysis.get('tests', []), list):
+                analysis['tests'] = [str(analysis.get('tests', 'General health checkup'))]
+            
+            # Ensure home_care_tips is not null for non-emergency cases
+            if analysis.get('urgency', '').lower() not in ['emergency', 'high'] and not analysis.get('home_care_tips'):
+                analysis['home_care_tips'] = "Rest, stay hydrated, monitor symptoms, and maintain good hygiene practices."
+            
+            logger.info(f"Processed analysis: {analysis}")
             return analysis
-        except json.JSONDecodeError:
-            # If JSON parsing fails, create a basic response
+            
+        except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {response_text}")
-            return {
-                "conditions": ["Unable to analyze - please consult a healthcare professional"],
-                "tests": ["Basic health checkup recommended"],
-                "urgency": "Moderate",
-                "first_aid": "Please consult with a healthcare professional for proper evaluation"
-            }
+            logger.error(f"JSON error: {e}")
+            # Return a more informative fallback response
+            return create_fallback_analysis(english_symptoms)
+            
     except Exception as e:
         logger.error(f"Symptom analysis error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to analyze symptoms")
+        return create_fallback_analysis(symptoms)
 
-def get_place_details(place_id: str) -> dict:
-    """Get additional details for a place"""
-    if not GOOGLE_MAPS_API_KEY:
-        return {}
-        
-    try:
-        url = "https://maps.googleapis.com/maps/api/place/details/json"
-        params = {
-            "place_id": place_id,
-            "fields": "name,formatted_address,rating,opening_hours,formatted_phone_number,geometry",
-            "key": GOOGLE_MAPS_API_KEY
-        }
-        
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json().get("result", {})
-    except Exception as e:
-        logger.error(f"Error getting place details: {e}")
-        return {}
+def get_default_value(field: str):
+    """Get default values for required fields"""
+    defaults = {
+        'conditions': ['Please consult a healthcare professional for proper evaluation'],
+        'detailed_description': 'Unable to provide detailed analysis. Please consult with a healthcare professional for proper symptom evaluation.',
+        'possible_causes': ['Multiple factors could contribute to these symptoms'],
+        'tests': ['Comprehensive medical examination recommended'],
+        'urgency': 'Moderate',
+        'when_to_seek_help': 'Consult with a healthcare professional for proper evaluation and diagnosis'
+    }
+    return defaults.get(field, 'Not available')
 
-def get_nearby_clinics(latitude: float, longitude: float) -> List[ClinicInfo]:
-    """Get nearby clinics using Google Maps API with coordinates"""
-    if not GOOGLE_MAPS_API_KEY:
-        # Return mock data for testing
-        return [
-            ClinicInfo(
-                name="City General Hospital",
-                address="123 Main Street, City Center",
-                rating=4.2,
-                distance="1.2 km",
-                latitude=latitude + 0.01,
-                longitude=longitude + 0.01,
-                phone="+1-555-0123",
-                place_id="mock_place_id_1"
-            ),
-            ClinicInfo(
-                name="Apollo Medical Center",
-                address="456 Health Avenue, Medical District",
-                rating=4.5,
-                distance="2.1 km",
-                latitude=latitude - 0.015,
-                longitude=longitude + 0.008,
-                phone="+1-555-0456",
-                place_id="mock_place_id_2"
-            ),
-            ClinicInfo(
-                name="Wellness Clinic",
-                address="789 Care Boulevard, Healthcare Zone",
-                rating=4.0,
-                distance="3.0 km",
-                latitude=latitude + 0.02,
-                longitude=longitude - 0.012,
-                phone="+1-555-0789",
-                place_id="mock_place_id_3"
-            )
-        ]
-    
-    try:
-        # Search for hospitals
-        url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-        params = {
-            "location": f"{latitude},{longitude}",
-            "radius": 10000,  # 10km radius
-            "type": "hospital",
-            "key": GOOGLE_MAPS_API_KEY
-        }
-        
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        
-        clinics = []
-        
-        for place in data.get("results", [])[:8]:
-            try:
-                place_lat = place["geometry"]["location"]["lat"]
-                place_lng = place["geometry"]["location"]["lng"]
-                
-                distance_km = calculate_distance(latitude, longitude, place_lat, place_lng)
-                
-                # Get additional details
-                place_details = get_place_details(place.get("place_id", ""))
-                
-                clinic = ClinicInfo(
-                    name=place.get("name", "Unknown"),
-                    address=place.get("vicinity", place_details.get("formatted_address", "Address not available")),
-                    rating=place.get("rating"),
-                    distance=f"{distance_km} km",
-                    latitude=place_lat,
-                    longitude=place_lng,
-                    phone=place_details.get("formatted_phone_number"),
-                    place_id=place.get("place_id")
-                )
-                clinics.append(clinic)
-            except Exception as e:
-                logger.error(f"Error processing clinic data: {e}")
-                continue
-        
-        # Sort by distance
-        clinics.sort(key=lambda x: float(x.distance.split()[0]))
-        return clinics[:5]  # Return top 5 closest clinics
-        
-    except Exception as e:
-        logger.error(f"Error fetching nearby clinics: {e}")
-        return []
+def create_fallback_analysis(symptoms: str) -> dict:
+    """Create a fallback analysis when JSON parsing fails"""
+    return {
+        "conditions": [f"Analysis of symptoms: {symptoms[:100]}..." if len(symptoms) > 100 else f"Analysis of symptoms: {symptoms}"],
+        "detailed_description": f"You've described symptoms that warrant medical evaluation. While I cannot provide a specific diagnosis, these symptoms could be related to various conditions that require professional assessment.",
+        "possible_causes": [
+            "Viral or bacterial infections",
+            "Inflammatory conditions", 
+            "Stress or lifestyle factors",
+            "Underlying medical conditions"
+        ],
+        "tests": ["Complete medical history and physical examination", "Basic blood tests if recommended by doctor"],
+        "urgency": "Moderate",
+        "home_care_tips": "Rest, stay hydrated, monitor symptoms, and avoid self-medication without professional guidance",
+        "when_to_seek_help": "Seek medical attention if symptoms worsen, persist beyond a few days, or if you develop additional concerning symptoms",
+        "first_aid": None
+    }
 
 @app.get("/")
 async def root():
@@ -293,92 +201,25 @@ async def root():
 async def health_check():
     return {
         "status": "healthy",
-        "whisper_available": whisper_model is not None,
-        "groq_available": GROQ_API_KEY is not None,
-        "maps_available": GOOGLE_MAPS_API_KEY is not None
+        "groq_available": GROQ_API_KEY is not None
     }
 
 @app.post("/api/process-text")
 async def process_text_symptoms(request: TextSymptomRequest):
-    """Process text-based symptom input"""
+    """Process text-based symptom input with detailed analysis"""
     try:
-        # Analyze symptoms
-        analysis = analyze_symptoms(request.symptoms)
+        logger.info(f"Processing symptoms: {request.symptoms}")
         
-        # Get nearby clinics if location is provided
-        if request.latitude and request.longitude:
-            clinics = get_nearby_clinics(request.latitude, request.longitude)
-            analysis["nearby_clinics"] = [clinic.dict() for clinic in clinics]
+        # Use the enhanced analysis function
+        analysis = analyze_symptoms_detailed(request.symptoms)
+        
+        logger.info(f"Analysis result: {analysis}")
         
         return {"analysis": analysis}
     
     except Exception as e:
         logger.error(f"Error processing text symptoms: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/process-voice")
-async def process_voice_symptoms(
-    audio: UploadFile = File(...),
-    latitude: Optional[float] = Form(None),
-    longitude: Optional[float] = Form(None)
-):
-    """Process voice-based symptom input"""
-    if not whisper_model:
-        raise HTTPException(status_code=503, detail="Voice processing not available")
-    
-    try:
-        # Save uploaded audio to temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-            content = await audio.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
-        
-        try:
-            # Transcribe audio using Whisper
-            result = whisper_model.transcribe(temp_file_path)
-            transcribed_text = result["text"].strip()
-            
-            if not transcribed_text:
-                raise HTTPException(status_code=400, detail="Could not transcribe audio")
-            
-            # Analyze symptoms
-            analysis = analyze_symptoms(transcribed_text)
-            
-            # Get nearby clinics if location is provided
-            if latitude and longitude:
-                clinics = get_nearby_clinics(latitude, longitude)
-                analysis["nearby_clinics"] = [clinic.dict() for clinic in clinics]
-            
-            return {
-                "transcribed_text": transcribed_text,
-                "analysis": analysis
-            }
-        
-        finally:
-            # Clean up temporary file
-            os.unlink(temp_file_path)
-    
-    except Exception as e:
-        logger.error(f"Error processing voice symptoms: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/get-clinics")
-async def get_clinics_endpoint(latitude: float, longitude: float):
-    """Get nearby clinics for given coordinates"""
-    try:
-        clinics = get_nearby_clinics(latitude, longitude)
-        return {"clinics": [clinic.dict() for clinic in clinics]}
-    except Exception as e:
-        logger.error(f"Error getting clinics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Integrate disease detection if available
-if disease_detection_available:
-    try:
-        integrate_disease_detection(app)
-        logger.info("Disease detection functionality integrated successfully")
-    except Exception as e:
-        logger.error(f"Failed to integrate disease detection: {e}")
 
 if __name__ == "__main__":
     import uvicorn

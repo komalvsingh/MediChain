@@ -12,7 +12,7 @@ const NavigationTabs = ({ activeTab, setActiveTab }) => {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Activity },
     { id: 'symptom-checker', label: 'AI Symptom Checker', icon: MessageCircle },
-    { id: 'disease-detection', label: 'Disease Detection', icon: Upload },
+    { id: 'disease-detection', label: 'Report Analyze', icon: Upload },
     { id: 'doctors', label: 'Find Doctors', icon: Stethoscope },
     { id: 'health-records', label: 'Health Records', icon: FileText },
     { id: 'access-requests', label: 'Access Requests', icon: UserCheck },
