@@ -70,7 +70,7 @@ const GuardianManagement = () => {
         setError("");
       } catch (err) {
         console.error("Contract initialization failed:", err);
-        setError(Contract connection failed: ${err.message});
+        setError(`Contract connection failed: ${err.message}`);
         setContractInitialized(false);
       }
     };
@@ -279,7 +279,7 @@ const GuardianManagement = () => {
         ? err.reason.replace("execution reverted: ", "")
         : err.message;
 
-      setError(Transaction failed: ${errorMessage});
+      setError(`Transaction failed: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
