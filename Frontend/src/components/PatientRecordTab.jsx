@@ -21,7 +21,7 @@ const PatientRecordsTab = () => {
   const [healthIDContract, setHealthIDContract] = useState(null);
   const [account, setAccount] = useState(null);
 
-  const MEDVAULT_CONTRACT_ADDRESS = "0x5FB4f0D8f07918a97dc5719C50aF7277872683C1";
+  const MEDVAULT_CONTRACT_ADDRESS = "0xB5DfAA0a512a9408Da7D940F63F80884901410b2";
   const HEALTHID_CONTRACT_ADDRESS = "0x0926920E743431343D90edA86F1B276350DA5A89";
 
   // Initialize blockchain connection
@@ -202,6 +202,8 @@ const PatientRecordsTab = () => {
   // Replace your existing handleDownload function with this enhanced version
 // Replace your existing handleDownload function with this enhanced version
 
+  // Replace your existing handleDownload function with this enhanced version
+
 const handleDownload = async (ipfsHash, fileName) => {
   try {
     if (!hasAccess && account.toLowerCase() !== patient.walletAddress.toLowerCase()) {
@@ -239,164 +241,77 @@ const handleDownload = async (ipfsHash, fileName) => {
 
     let decryptedData;
     let finalFileName = fileName;
-    let mimeType = 'application/octet-stream';
 
     try {
-      console.log('Processing file data...');
-      const encryptedUint8Array = new Uint8Array(encryptedData);
+      // Try to decrypt the file using the contract
+      console.log('Attempting to decrypt file...');
       
-      // First, let's check if the file is actually encrypted or just raw data
-      const fileSignature = Array.from(encryptedUint8Array.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-      console.log('File signature (first 8 bytes):', fileSignature);
-      
-      // Extended file signatures for better detection
-      const signatures = {
-        '25504446': { ext: 'pdf', mime: 'application/pdf' }, // PDF (%PDF)
-        '89504E47': { ext: 'png', mime: 'image/png' }, // PNG
-        'FFD8FFE0': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
-        'FFD8FFE1': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
-        'FFD8FFDB': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
-        'FFD8FFEE': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
-        '504B0304': { ext: 'zip', mime: 'application/zip' }, // ZIP
-        '504B0506': { ext: 'zip', mime: 'application/zip' }, // ZIP
-        '504B0708': { ext: 'zip', mime: 'application/zip' }, // ZIP
-        'D0CF11E0': { ext: 'doc', mime: 'application/msword' }, // DOC
-        '504B': { ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }, // DOCX (starts with PK)
-      };
-      
-      // Check for PDF signature at the beginning
-      let fileInfo = null;
-      for (const [sig, info] of Object.entries(signatures)) {
-        if (fileSignature.startsWith(sig)) {
-          fileInfo = info;
-          console.log('Detected file type:', info);
-          break;
-        }
-      }
-      
-      // Also check for PDF by looking for "%PDF" string
-      const textDecoder = new TextDecoder('utf-8', { fatal: false });
-      const firstBytes = textDecoder.decode(encryptedUint8Array.slice(0, 100));
-      if (firstBytes.includes('%PDF') || firstBytes.includes('PDF')) {
-        fileInfo = { ext: 'pdf', mime: 'application/pdf' };
-        console.log('Detected PDF by content signature');
-      }
-      
-      if (fileInfo) {
-        // File appears to be unencrypted and valid
-        console.log('File appears to be unencrypted and valid');
-        decryptedData = encryptedUint8Array;
-        mimeType = fileInfo.mime;
-        finalFileName = fileName.includes('.') ? fileName : `${fileName}.${fileInfo.ext}`;
+      // Get decryption key or decrypt through contract
+      // This depends on how your encryption is implemented
+      // Option 1: If the contract has a decrypt function
+      if (contract.decryptFile) {
+        const decryptedBuffer = await contract.decryptFile(ipfsHash, patient.walletAddress);
+        decryptedData = decryptedBuffer;
       } else {
-        // File might be encrypted - try different decryption approaches
-        console.log('File appears to be encrypted or unknown format, attempting decryption...');
+        // Option 2: If decryption happens client-side
+        // You'll need to implement this based on your encryption method
+        console.log('Attempting client-side decryption...');
         
-        try {
-          // Method 1: Try to decrypt using contract (if available)
-          if (contract && typeof contract.decryptFile === 'function') {
-            console.log('Attempting contract-based decryption...');
-            const decryptedBuffer = await contract.decryptFile(ipfsHash, patient.walletAddress);
-            decryptedData = new Uint8Array(decryptedBuffer);
-          } else {
-            // Method 2: Try client-side decryption approaches
-            console.log('Attempting client-side decryption...');
-            
-            // Check if it's Base64 encoded
-            try {
-              const base64String = textDecoder.decode(encryptedUint8Array);
-              if (/^[A-Za-z0-9+/]+=*$/.test(base64String.trim())) {
-                console.log('Attempting Base64 decode...');
-                const decodedData = atob(base64String.trim());
-                const decodedArray = new Uint8Array(decodedData.length);
-                for (let i = 0; i < decodedData.length; i++) {
-                  decodedArray[i] = decodedData.charCodeAt(i);
-                }
-                
-                // Check if decoded data has valid file signature
-                const decodedSignature = Array.from(decodedArray.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-                if (decodedSignature === '25504446') { // PDF signature
-                  decryptedData = decodedArray;
-                  mimeType = 'application/pdf';
-                  finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
-                  console.log('Successfully decoded Base64 PDF');
-                } else {
-                  throw new Error('Base64 decode did not produce valid PDF');
-                }
-              } else {
-                throw new Error('Not Base64 encoded');
-              }
-            } catch (base64Error) {
-              console.log('Base64 decode failed:', base64Error.message);
-              
-              // Method 3: Try simple XOR decryption (common simple encryption)
-              console.log('Attempting simple decryption methods...');
-              
-              // Try different XOR keys
-              const xorKeys = [0x42, 0xFF, 0xAA, 0x55, 0x00];
-              let decrypted = false;
-              
-              for (const key of xorKeys) {
-                const xorDecrypted = new Uint8Array(encryptedUint8Array.length);
-                for (let i = 0; i < encryptedUint8Array.length; i++) {
-                  xorDecrypted[i] = encryptedUint8Array[i] ^ key;
-                }
-                
-                // Check if XOR decryption produced valid PDF
-                const xorSignature = Array.from(xorDecrypted.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-                if (xorSignature === '25504446') {
-                  decryptedData = xorDecrypted;
-                  mimeType = 'application/pdf';
-                  finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
-                  console.log(`Successfully decrypted with XOR key: ${key}`);
-                  decrypted = true;
-                  break;
-                }
-              }
-              
-              if (!decrypted) {
-                // If all decryption attempts fail, use raw data
-                console.log('All decryption attempts failed, using raw data');
-                decryptedData = encryptedUint8Array;
-                mimeType = 'application/pdf'; // Assume PDF
-                finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
-              }
-            }
-          }
-        } catch (decryptError) {
-          console.log('All decryption methods failed:', decryptError.message);
-          // Use raw data as last resort
+        // For now, let's try to parse the encrypted data
+        // This is a placeholder - you'll need to implement actual decryption
+        const encryptedUint8Array = new Uint8Array(encryptedData);
+        
+        // Check if it's already a readable format (PDF, image, etc.)
+        const fileSignature = Array.from(encryptedUint8Array.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('');
+        console.log('File signature (first 4 bytes):', fileSignature);
+        
+        // Common file signatures
+        const signatures = {
+          '25504446': { ext: 'pdf', mime: 'application/pdf' }, // PDF
+          '89504E47': { ext: 'png', mime: 'image/png' }, // PNG
+          'FFD8FFE0': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+          'FFD8FFE1': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+          '504B0304': { ext: 'zip', mime: 'application/zip' }, // ZIP
+          '504B0506': { ext: 'zip', mime: 'application/zip' }, // ZIP
+          '504B0708': { ext: 'zip', mime: 'application/zip' }, // ZIP
+        };
+        
+        const fileInfo = signatures[fileSignature.toUpperCase()];
+        
+        if (fileInfo) {
+          console.log('File appears to be unencrypted:', fileInfo);
           decryptedData = encryptedUint8Array;
-          mimeType = 'application/pdf';
-          finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
-        }
-      }
-      
-      // Validate PDF structure if it's supposed to be a PDF
-      if (mimeType === 'application/pdf') {
-        const pdfValidator = new TextDecoder('utf-8', { fatal: false });
-        const pdfContent = pdfValidator.decode(decryptedData.slice(0, 100));
-        if (!pdfContent.includes('%PDF')) {
-          console.warn('Warning: File may not be a valid PDF');
-          // Still proceed with download, but warn user
+          finalFileName = fileName.includes('.') ? fileName : `${fileName}.${fileInfo.ext}`;
         } else {
-          console.log('PDF validation successful');
+          // File is encrypted, attempt decryption
+          console.log('File appears to be encrypted, attempting decryption...');
+          
+          // You'll need to implement the actual decryption logic here
+          // This is just a placeholder that tries to use the raw data
+          decryptedData = encryptedUint8Array;
+          
+          // Try to determine file type from filename or default to PDF
+          if (!fileName.includes('.')) {
+            finalFileName = `${fileName}.pdf`;
+          }
         }
       }
-      
-    } catch (processingError) {
-      console.error('File processing failed:', processingError);
-      // Use raw data as fallback
+    } catch (decryptError) {
+      console.log('Decryption failed or not needed:', decryptError.message);
+      // If decryption fails, try to download as-is
       decryptedData = new Uint8Array(encryptedData);
-      mimeType = 'application/pdf';
-      finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
+      
+      // Ensure filename has extension
+      if (!fileName.includes('.')) {
+        finalFileName = `${fileName}.pdf`; // Default to PDF
+      }
     }
 
     // Remove loading toast
     document.body.removeChild(loadingToast);
 
-    // Create blob with proper MIME type
-    const blob = new Blob([decryptedData], { type: mimeType });
+    // Create blob and download
+    const blob = new Blob([decryptedData]);
     const url = window.URL.createObjectURL(blob);
     
     // Create download link

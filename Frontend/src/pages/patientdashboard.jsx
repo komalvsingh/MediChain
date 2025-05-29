@@ -8,6 +8,7 @@ import DoctorsTab from '../components/DoctorsTab';
 import HealthRecordsTab from '../components/HealthRecordsTab';
 import ZKPVerificationTab from '../components/ZKPVerificationTab';
 import { AccessRequestsPanel } from '../components/AccessRequest';
+import GuardianManagement from '../components/GuardianManagement';
 
 const PatientDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -51,6 +52,8 @@ const PatientDashboard = () => {
         return <AccessRequestsPanel />;
       case 'zkp-verification':
         return <ZKPVerificationTab />;
+      case 'guardian-management':
+        return <GuardianManagement />;
       default:
         return <DashboardTab wearableData={wearableData} />;
     }
