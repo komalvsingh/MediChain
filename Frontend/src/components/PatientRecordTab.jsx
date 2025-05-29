@@ -21,7 +21,7 @@ const PatientRecordsTab = () => {
   const [healthIDContract, setHealthIDContract] = useState(null);
   const [account, setAccount] = useState(null);
 
-  const MEDVAULT_CONTRACT_ADDRESS = "0x5FB4f0D8f07918a97dc5719C50aF7277872683C1";
+  const MEDVAULT_CONTRACT_ADDRESS = "0xB5DfAA0a512a9408Da7D940F63F80884901410b2";
   const HEALTHID_CONTRACT_ADDRESS = "0x0926920E743431343D90edA86F1B276350DA5A89";
 
   // Initialize blockchain connection

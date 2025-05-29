@@ -23,7 +23,7 @@ export const AccessRequestsPanel = () => {
   const [account, setAccount] = useState(null);
   
   const token = localStorage.getItem('token');
-  const CONTRACT_ADDRESS = "0x5FB4f0D8f07918a97dc5719C50aF7277872683C1"; // Replace with your deployed contract address
+  const CONTRACT_ADDRESS = "0xB5DfAA0a512a9408Da7D940F63F80884901410b2"; // Replace with your deployed contract address
 
   // Initialize contract and account
   useEffect(() => {

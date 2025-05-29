@@ -6,7 +6,7 @@ interface IMedVault {
     function hasEmergencyAccess(address patient, address accessor) external view returns (bool);
 }
 
-contract Guardian {
+contract Guardian { 
     struct EmergencyRequest {
         address[] guardians;
         uint256 approvalsNeeded;

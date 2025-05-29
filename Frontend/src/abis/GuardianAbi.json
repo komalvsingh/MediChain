@@ -1,4 +1,23 @@
-[
+ [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "patient",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address[]",
+          "name": "guardians",
+          "type": "address[]"
+        }
+      ],
+      "name": "GuardiansAssigned",
+      "type": "event"
+    },
     {
       "anonymous": false,
       "inputs": [
@@ -72,6 +91,19 @@
     {
       "inputs": [
         {
+          "internalType": "address[]",
+          "name": "_guardians",
+          "type": "address[]"
+        }
+      ],
+      "name": "assignGuardians",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "",
           "type": "address"
@@ -93,6 +125,69 @@
           "internalType": "bool",
           "name": "executed",
           "type": "bool"
+        },
+        {
+          "internalType": "uint256",
+          "name": "approvalCount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "patient",
+          "type": "address"
+        }
+      ],
+      "name": "getGuardians",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "patient",
+          "type": "address"
+        }
+      ],
+      "name": "getRequestStatus",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "approvalsNeeded",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "currentApprovals",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "unlockTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "executed",
+          "type": "bool"
+        },
+        {
+          "internalType": "bool",
+          "name": "active",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
@@ -106,12 +201,81 @@
           "type": "address"
         },
         {
-          "internalType": "address[]",
-          "name": "_guardians",
-          "type": "address[]"
+          "internalType": "address",
+          "name": "guardian",
+          "type": "address"
+        }
+      ],
+      "name": "hasApproved",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "medVaultContract",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "patientGuardians",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "patient",
+          "type": "address"
         }
       ],
       "name": "requestUnlock",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_medVaultContract",
+          "type": "address"
+        }
+      ],
+      "name": "setMedVaultContract",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
