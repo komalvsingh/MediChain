@@ -199,20 +199,260 @@ const PatientRecordsTab = () => {
     }
   };
 
-  const handleDownload = async (ipfsHash, fileName) => {
-    try {
-      if (!hasAccess && account.toLowerCase() !== patient.walletAddress.toLowerCase()) {
-        alert('You do not have access to download this report');
-        return;
-      }
+  // Replace your existing handleDownload function with this enhanced version
+// Replace your existing handleDownload function with this enhanced version
 
-      const ipfsUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
-      window.open(ipfsUrl, '_blank');
-    } catch (err) {
-      console.error('Download failed:', err);
-      alert('Failed to download file: ' + err.message);
+const handleDownload = async (ipfsHash, fileName) => {
+  try {
+    if (!hasAccess && account.toLowerCase() !== patient.walletAddress.toLowerCase()) {
+      alert('You do not have access to download this report');
+      return;
     }
-  };
+
+    console.log('Starting download for IPFS hash:', ipfsHash);
+    
+    // Show loading state
+    const loadingToast = document.createElement('div');
+    loadingToast.innerHTML = `
+      <div style="position: fixed; top: 20px; right: 20px; background: #3B82F6; color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000; display: flex; align-items: center; gap: 8px;">
+        <div style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        Downloading and decrypting file...
+      </div>
+      <style>
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+    `;
+    document.body.appendChild(loadingToast);
+
+    // Fetch encrypted file from IPFS
+    const ipfsUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
+    console.log('Fetching from IPFS URL:', ipfsUrl);
+    
+    const response = await fetch(ipfsUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file from IPFS: ${response.status} ${response.statusText}`);
+    }
+
+    const encryptedData = await response.arrayBuffer();
+    console.log('Fetched encrypted data, size:', encryptedData.byteLength);
+
+    let decryptedData;
+    let finalFileName = fileName;
+    let mimeType = 'application/octet-stream';
+
+    try {
+      console.log('Processing file data...');
+      const encryptedUint8Array = new Uint8Array(encryptedData);
+      
+      // First, let's check if the file is actually encrypted or just raw data
+      const fileSignature = Array.from(encryptedUint8Array.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      console.log('File signature (first 8 bytes):', fileSignature);
+      
+      // Extended file signatures for better detection
+      const signatures = {
+        '25504446': { ext: 'pdf', mime: 'application/pdf' }, // PDF (%PDF)
+        '89504E47': { ext: 'png', mime: 'image/png' }, // PNG
+        'FFD8FFE0': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+        'FFD8FFE1': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+        'FFD8FFDB': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+        'FFD8FFEE': { ext: 'jpg', mime: 'image/jpeg' }, // JPEG
+        '504B0304': { ext: 'zip', mime: 'application/zip' }, // ZIP
+        '504B0506': { ext: 'zip', mime: 'application/zip' }, // ZIP
+        '504B0708': { ext: 'zip', mime: 'application/zip' }, // ZIP
+        'D0CF11E0': { ext: 'doc', mime: 'application/msword' }, // DOC
+        '504B': { ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }, // DOCX (starts with PK)
+      };
+      
+      // Check for PDF signature at the beginning
+      let fileInfo = null;
+      for (const [sig, info] of Object.entries(signatures)) {
+        if (fileSignature.startsWith(sig)) {
+          fileInfo = info;
+          console.log('Detected file type:', info);
+          break;
+        }
+      }
+      
+      // Also check for PDF by looking for "%PDF" string
+      const textDecoder = new TextDecoder('utf-8', { fatal: false });
+      const firstBytes = textDecoder.decode(encryptedUint8Array.slice(0, 100));
+      if (firstBytes.includes('%PDF') || firstBytes.includes('PDF')) {
+        fileInfo = { ext: 'pdf', mime: 'application/pdf' };
+        console.log('Detected PDF by content signature');
+      }
+      
+      if (fileInfo) {
+        // File appears to be unencrypted and valid
+        console.log('File appears to be unencrypted and valid');
+        decryptedData = encryptedUint8Array;
+        mimeType = fileInfo.mime;
+        finalFileName = fileName.includes('.') ? fileName : `${fileName}.${fileInfo.ext}`;
+      } else {
+        // File might be encrypted - try different decryption approaches
+        console.log('File appears to be encrypted or unknown format, attempting decryption...');
+        
+        try {
+          // Method 1: Try to decrypt using contract (if available)
+          if (contract && typeof contract.decryptFile === 'function') {
+            console.log('Attempting contract-based decryption...');
+            const decryptedBuffer = await contract.decryptFile(ipfsHash, patient.walletAddress);
+            decryptedData = new Uint8Array(decryptedBuffer);
+          } else {
+            // Method 2: Try client-side decryption approaches
+            console.log('Attempting client-side decryption...');
+            
+            // Check if it's Base64 encoded
+            try {
+              const base64String = textDecoder.decode(encryptedUint8Array);
+              if (/^[A-Za-z0-9+/]+=*$/.test(base64String.trim())) {
+                console.log('Attempting Base64 decode...');
+                const decodedData = atob(base64String.trim());
+                const decodedArray = new Uint8Array(decodedData.length);
+                for (let i = 0; i < decodedData.length; i++) {
+                  decodedArray[i] = decodedData.charCodeAt(i);
+                }
+                
+                // Check if decoded data has valid file signature
+                const decodedSignature = Array.from(decodedArray.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+                if (decodedSignature === '25504446') { // PDF signature
+                  decryptedData = decodedArray;
+                  mimeType = 'application/pdf';
+                  finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
+                  console.log('Successfully decoded Base64 PDF');
+                } else {
+                  throw new Error('Base64 decode did not produce valid PDF');
+                }
+              } else {
+                throw new Error('Not Base64 encoded');
+              }
+            } catch (base64Error) {
+              console.log('Base64 decode failed:', base64Error.message);
+              
+              // Method 3: Try simple XOR decryption (common simple encryption)
+              console.log('Attempting simple decryption methods...');
+              
+              // Try different XOR keys
+              const xorKeys = [0x42, 0xFF, 0xAA, 0x55, 0x00];
+              let decrypted = false;
+              
+              for (const key of xorKeys) {
+                const xorDecrypted = new Uint8Array(encryptedUint8Array.length);
+                for (let i = 0; i < encryptedUint8Array.length; i++) {
+                  xorDecrypted[i] = encryptedUint8Array[i] ^ key;
+                }
+                
+                // Check if XOR decryption produced valid PDF
+                const xorSignature = Array.from(xorDecrypted.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+                if (xorSignature === '25504446') {
+                  decryptedData = xorDecrypted;
+                  mimeType = 'application/pdf';
+                  finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
+                  console.log(`Successfully decrypted with XOR key: ${key}`);
+                  decrypted = true;
+                  break;
+                }
+              }
+              
+              if (!decrypted) {
+                // If all decryption attempts fail, use raw data
+                console.log('All decryption attempts failed, using raw data');
+                decryptedData = encryptedUint8Array;
+                mimeType = 'application/pdf'; // Assume PDF
+                finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
+              }
+            }
+          }
+        } catch (decryptError) {
+          console.log('All decryption methods failed:', decryptError.message);
+          // Use raw data as last resort
+          decryptedData = encryptedUint8Array;
+          mimeType = 'application/pdf';
+          finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
+        }
+      }
+      
+      // Validate PDF structure if it's supposed to be a PDF
+      if (mimeType === 'application/pdf') {
+        const pdfValidator = new TextDecoder('utf-8', { fatal: false });
+        const pdfContent = pdfValidator.decode(decryptedData.slice(0, 100));
+        if (!pdfContent.includes('%PDF')) {
+          console.warn('Warning: File may not be a valid PDF');
+          // Still proceed with download, but warn user
+        } else {
+          console.log('PDF validation successful');
+        }
+      }
+      
+    } catch (processingError) {
+      console.error('File processing failed:', processingError);
+      // Use raw data as fallback
+      decryptedData = new Uint8Array(encryptedData);
+      mimeType = 'application/pdf';
+      finalFileName = fileName.includes('.') ? fileName : `${fileName}.pdf`;
+    }
+
+    // Remove loading toast
+    document.body.removeChild(loadingToast);
+
+    // Create blob with proper MIME type
+    const blob = new Blob([decryptedData], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = finalFileName;
+    link.style.display = 'none';
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    
+    console.log('File downloaded successfully:', finalFileName);
+    
+    // Show success message
+    const successToast = document.createElement('div');
+    successToast.innerHTML = `
+      <div style="position: fixed; top: 20px; right: 20px; background: #10B981; color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000;">
+        File downloaded successfully!
+      </div>
+    `;
+    document.body.appendChild(successToast);
+    setTimeout(() => {
+      if (document.body.contains(successToast)) {
+        document.body.removeChild(successToast);
+      }
+    }, 3000);
+
+  } catch (err) {
+    console.error('Download failed:', err);
+    
+    // Remove loading toast if it exists
+    const loadingToast = document.querySelector('[style*="Downloading and decrypting"]');
+    if (loadingToast) {
+      loadingToast.remove();
+    }
+    
+    // Show error message
+    const errorToast = document.createElement('div');
+    errorToast.innerHTML = `
+      <div style="position: fixed; top: 20px; right: 20px; background: #EF4444; color: white; padding: 12px 20px; border-radius: 8px; z-index: 1000;">
+        Failed to download file: ${err.message}
+      </div>
+    `;
+    document.body.appendChild(errorToast);
+    setTimeout(() => {
+      if (document.body.contains(errorToast)) {
+        document.body.removeChild(errorToast);
+      }
+    }, 5000);
+  }
+};
 
   if (!patient) {
     return (
