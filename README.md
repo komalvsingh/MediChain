@@ -123,7 +123,7 @@ In today’s world, early detection of diseases and control over one’s own hea
 
 ---
 
-## 🧩 Bonus Features
+## 🧩 Future Scope
 
 ### 🎮 Gamification with Health NFTs
 
